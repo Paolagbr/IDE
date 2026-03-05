@@ -263,6 +263,8 @@ compilar_menu = Menu(compilar_btn, tearoff=0, bg=COLOR_FONDO, fg=COLOR_TEXTO)
 compilar_menu.add_command(label=" Análisis Léxico", image=img_lexico, compound=tk.LEFT, command=FunCompilacion.analisis_lexico)
 compilar_menu.add_command(label=" Análisis Sintáctico", image=img_sintatico, compound=tk.LEFT, command=FunCompilacion.analisis_sintactico)
 compilar_menu.add_command(label=" Análisis Semántico", image=img_semantico, compound=tk.LEFT, command=FunCompilacion.analisis_semantico)
+compilar_menu.add_command(label=" Intermedio", compound=tk.LEFT, command=FunCompilacion.codigo_intermedio)
+compilar_menu.add_command(label=" Ejecutar", image=img_play, compound=tk.LEFT, command=FunCompilacion.ejecutar_programa)
 compilar_btn.config(menu=compilar_menu)
 compilar_btn.pack(side=tk.LEFT, padx=5)
 
@@ -276,7 +278,7 @@ crear_btn_sup("Semántico", img_semantico, FunCompilacion.analisis_semantico)
 crear_btn_sup("Intermedio", None, FunCompilacion.codigo_intermedio)
 
 # Botón Ejecutar (Destacado)
-tk.Button(barra_superior, text=" Ejecutar", image=img_play, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, font=('Segoe UI', 10, 'bold'), command=FunCompilacion.ejecutar_programa, padx=15).pack(side=tk.LEFT)
+tk.Button(barra_superior, text=" Ejecutar", image=img_play, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, font=('Segoe UI', 10), command=FunCompilacion.ejecutar_programa, padx=15).pack(side=tk.LEFT)
 
 # BARRA DE ACCESO RÁPIDO (La de abajo del menú)
 barra_herramientas = tk.Frame(root, bg=COLOR_EDITOR, height=35)
@@ -294,7 +296,9 @@ crear_btn_herr(img_lexico, FunCompilacion.analisis_lexico)
 crear_btn_herr(img_sintatico, FunCompilacion.analisis_sintactico)
 crear_btn_herr(img_semantico, FunCompilacion.analisis_semantico)
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
-tk.Button(barra_herramientas, image=img_play, bg="#BF616A", relief=tk.FLAT, command=FunCompilacion.ejecutar_programa).pack(side=tk.LEFT, padx=5)
+tk.Button(barra_herramientas, image=img_play, bg=COLOR_EDITOR,activebackground=COLOR_BARRA, # Color que brilla cuando pasas el mouse
+          bd=0, # Quita el borde negro 
+          relief=tk.FLAT, command=FunCompilacion.ejecutar_programa).pack(side=tk.LEFT, padx=5)
 
 # ==========================================
 # 5. ESTRUCTURA DE PANELES
