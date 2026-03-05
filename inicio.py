@@ -108,56 +108,135 @@ def cerrar_pestana_actual(index=None):
         elif res is None: return
     notebook_editor.forget(id_p)
 
+# def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
+#     frame_pestana = tk.Frame(notebook_editor, bg=COLOR_EDITOR)
+#     editor_container = tk.Frame(frame_pestana, bg=COLOR_EDITOR)
+#     editor_container.pack(fill=tk.BOTH, expand=True)
+
+#     line_numbers = tk.Text(editor_container, width=4, padx=5, takefocus=0, border=0, 
+#                            bg="#2E3440", fg="#D8DEE9", state="disabled", font=FUENTE_EDITOR)
+#     line_numbers.pack(side=tk.LEFT, fill=tk.Y)
+
+#     editor_text = tk.Text(editor_container, undo=True, wrap="none",
+#                            bg=COLOR_EDITOR, 
+#                           fg=COLOR_TEXTO, insertbackground="white",
+#                             borderwidth=0, font=FUENTE_EDITOR)
+#     editor_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+#     editor_text.insert("1.0", contenido)
+    
+#     frame_pestana.editor_text = editor_text
+#     frame_pestana.line_numbers = line_numbers
+#     editor_text.tag_configure("active_line", background=COLOR_HIGHLIGHT)
+
+#     # def sincronizar_scroll(*args):
+#     #     line_numbers.yview(*args)
+#     #     editor_text.yview(*args)
+    
+#     def sincronizar_scroll(*args):
+#         line_numbers.yview(*args)
+#         editor_text.yview(*args)
+
+#     scrollbar = tk.Scrollbar(editor_container, command=sincronizar_scroll)
+#     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+#     editor_text.config(yscrollcommand=scrollbar.set)
+#     line_numbers.config(yscrollcommand=scrollbar.set)
+#     editor_text.bind("<KeyRelease>", lambda e: [
+#         actualizar_todo_local(editor_text, line_numbers),
+#         marcar_como_modificado(e, editor_text),
+#         actualizar_estado_cursor()
+#     ])
+#     editor_text.bind("<Button-1>", lambda e: root.after(10, lambda: actualizar_todo_local(editor_text, line_numbers)))
+#     editor_text.bind("<ButtonRelease>", actualizar_estado_cursor)
+#     editor_text.bind("<Motion>", actualizar_estado_cursor)
+#     notebook_editor.add(frame_pestana, text=nombre)
+#     notebook_editor.select(frame_pestana)
+#     # Sincroniza cuando usas la rueda del ratón
+#     editor_text.bind("<MouseWheel>", lambda e: line_numbers.yview_scroll(int(-1*(e.delta/120)), "units"))
+#     # Para Linux (si fuera el caso)
+#     editor_text.bind("<Button-4>", lambda e: line_numbers.yview_scroll(-1, "units"))
+#     editor_text.bind("<Button-5>", lambda e: line_numbers.yview_scroll(1, "units"))
+#     estados_modificados[notebook_editor.select()] = False
+#     actualizar_todo_local(editor_text, line_numbers)
 def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     frame_pestana = tk.Frame(notebook_editor, bg=COLOR_EDITOR)
     editor_container = tk.Frame(frame_pestana, bg=COLOR_EDITOR)
     editor_container.pack(fill=tk.BOTH, expand=True)
 
+    # 1. Widget de números de línea
     line_numbers = tk.Text(editor_container, width=4, padx=5, takefocus=0, border=0, 
                            bg="#2E3440", fg="#D8DEE9", state="disabled", font=FUENTE_EDITOR)
     line_numbers.pack(side=tk.LEFT, fill=tk.Y)
 
+    # 2. Widget del editor de texto
     editor_text = tk.Text(editor_container, undo=True, wrap="none",
-                           bg=COLOR_EDITOR, 
+                          bg=COLOR_EDITOR, 
                           fg=COLOR_TEXTO, insertbackground="white",
-                            borderwidth=0, font=FUENTE_EDITOR)
+                          borderwidth=0, font=FUENTE_EDITOR)
     editor_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     editor_text.insert("1.0", contenido)
     
+    # Referencias necesarias para funciones externas
     frame_pestana.editor_text = editor_text
     frame_pestana.line_numbers = line_numbers
     editor_text.tag_configure("active_line", background=COLOR_HIGHLIGHT)
 
-    # def sincronizar_scroll(*args):
-    #     line_numbers.yview(*args)
-    #     editor_text.yview(*args)
-    
-    def sincronizar_scroll(*args):
+    # --- LÓGICA DE SINCRONIZACIÓN CRÍTICA ---
+
+    def sincronizar_vistas(*args):
+        """Mueve ambos widgets cuando se arrastra la barra de scroll"""
         line_numbers.yview(*args)
         editor_text.yview(*args)
 
-    scrollbar = tk.Scrollbar(editor_container, command=sincronizar_scroll)
+    def al_hacer_scroll(*args):
+        """Se activa cuando el editor cambia su vista (por teclado o ratón)"""
+        scrollbar.set(*args)
+        # Sincroniza la posición de los números con la del editor
+        line_numbers.yview_moveto(args[0])
+        actualizar_todo_local(editor_text, line_numbers)
+
+    # Configuración de Scrollbar
+    scrollbar = tk.Scrollbar(editor_container, command=sincronizar_vistas)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    editor_text.config(yscrollcommand=scrollbar.set)
-    line_numbers.config(yscrollcommand=scrollbar.set)
+    
+    # Enlazamos el scroll del editor a nuestra función controladora
+    editor_text.config(yscrollcommand=al_hacer_scroll)
+
+    # Eventos de teclado y mouse
     editor_text.bind("<KeyRelease>", lambda e: [
         actualizar_todo_local(editor_text, line_numbers),
         marcar_como_modificado(e, editor_text),
         actualizar_estado_cursor()
     ])
+    
+    # Detecta clics para actualizar el resaltado de línea actual
     editor_text.bind("<Button-1>", lambda e: root.after(10, lambda: actualizar_todo_local(editor_text, line_numbers)))
     editor_text.bind("<ButtonRelease>", actualizar_estado_cursor)
-    editor_text.bind("<Motion>", actualizar_estado_cursor)
+    
+    # Evento para cambios masivos (Pegar texto o borrar bloques)
+    editor_text.bind("<<Modified>>", lambda e: [
+        actualizar_todo_local(editor_text, line_numbers),
+        editor_text.edit_modified(False)
+    ])
+
+    # Manejo unificado de la rueda del ratón
+    def mouse_wheel(event):
+        # En Windows, event.delta suele ser 120 o -120
+        # Dividimos para obtener el número de unidades a desplazar
+        move = int(-1 * (event.delta / 120))
+        editor_text.yview_scroll(move, "units")
+        line_numbers.yview_scroll(move, "units")
+        actualizar_todo_local(editor_text, line_numbers)
+        return "break" # Evita el scroll default que podría desfasarlos
+
+    editor_text.bind("<MouseWheel>", mouse_wheel)
+
+    # Finalizar creación de pestaña
     notebook_editor.add(frame_pestana, text=nombre)
     notebook_editor.select(frame_pestana)
-    # Sincroniza cuando usas la rueda del ratón
-    editor_text.bind("<MouseWheel>", lambda e: line_numbers.yview_scroll(int(-1*(e.delta/120)), "units"))
-    # Para Linux (si fuera el caso)
-    editor_text.bind("<Button-4>", lambda e: line_numbers.yview_scroll(-1, "units"))
-    editor_text.bind("<Button-5>", lambda e: line_numbers.yview_scroll(1, "units"))
+    
+    # Estado inicial
     estados_modificados[notebook_editor.select()] = False
     actualizar_todo_local(editor_text, line_numbers)
-
 # ==========================================
 # 4. MENÚS Y BARRA SUPERIOR (TU DISEÑO)
 # ==========================================
@@ -248,17 +327,35 @@ for n in ["Errores Léxicos", "Errores Sintácticos", "Errores Semánticos", "Re
 # ==========================================
 # 6. FUNCIONES DE APOYO
 # ==========================================
+# def actualizar_todo_local(txt, line_w):
+#     line_w.config(state="normal")
+#     line_w.delete("1.0", tk.END)
+#     total = int(txt.index("end-1c").split(".")[0])
+#     line_w.insert("1.0", "\n".join(str(i) for i in range(1, total + 1)))
+#     line_w.yview_moveto(txt.yview()[0])
+#     line_w.config(state="disabled")
+#     # Resaltar linea actual
+#     txt.tag_remove("active_line", "1.0", tk.END)
+#     txt.tag_add("active_line", f"{txt.index('insert').split('.')[0]}.0", f"{txt.index('insert').split('.')[0]}.end+1c")
 def actualizar_todo_local(txt, line_w):
     line_w.config(state="normal")
     line_w.delete("1.0", tk.END)
-    total = int(txt.index("end-1c").split(".")[0])
-    line_w.insert("1.0", "\n".join(str(i) for i in range(1, total + 1)))
+    
+    # Obtenemos el número de líneas total
+    metrica_lineas = txt.index('end-1c').split('.')[0]
+    lineas = "\n".join(str(i) for i in range(1, int(metrica_lineas) + 1))
+    
+    line_w.insert("1.0", lineas)
+    
+    # ESTO ES LO MÁS IMPORTANTE:
+    # Ajusta el scroll de los números para que coincida EXACTAMENTE con el del editor
     line_w.yview_moveto(txt.yview()[0])
+    
     line_w.config(state="disabled")
-    # Resaltar linea actual
+    
+    # Resaltar línea actual
     txt.tag_remove("active_line", "1.0", tk.END)
     txt.tag_add("active_line", f"{txt.index('insert').split('.')[0]}.0", f"{txt.index('insert').split('.')[0]}.end+1c")
-
 def resetear_modificado():
     id_p = notebook_editor.select()
     if id_p:
