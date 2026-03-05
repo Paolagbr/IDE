@@ -34,6 +34,22 @@ estilo.configure("TNotebook", background=COLOR_FONDO, borderwidth=0)
 estilo.configure("TNotebook.Tab", background=COLOR_BARRA, foreground=COLOR_FONDO, padding=[12, 4], font=FUENTE_SISTEMA)
 estilo.map("TNotebook.Tab", background=[("selected", COLOR_EDITOR)], foreground=[("selected", COLOR_TEXTO)])
 
+#Funcion de abrir archivos
+def abrir_archivo_flujo():
+    # Abre el cuadro de diálogo UNA sola vez
+    ruta = filedialog.askopenfilename(
+        filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")]
+    )
+    # Si el usuario seleccionó algo (no canceló)
+    if ruta:
+        try:
+            with open(ruta, "r", encoding="utf-8") as f:
+                contenido = f.read()
+            nombre = os.path.basename(ruta)
+            # Llamamos a tu función de pestañas
+            agregar_pestana(nombre, contenido, ruta)
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo abrir el archivo: {e}")
 # ==========================================
 # 2. CARGA DE ICONOS
 # ==========================================
@@ -248,7 +264,7 @@ barra_superior.pack_propagate(False)
 archivo_btn = tk.Menubutton(barra_superior, text="Archivo", image=img_archivos, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, font=FUENTE_SISTEMA)
 archivo_menu = Menu(archivo_btn, tearoff=0, bg=COLOR_FONDO, fg=COLOR_TEXTO)
 archivo_menu.add_command(label=" Nuevo", image=img_nuevo, compound=tk.LEFT, command=lambda: agregar_pestana())
-archivo_menu.add_command(label=" Abrir", image=img_abrir, compound=tk.LEFT, command=lambda: agregar_pestana(os.path.basename(f := filedialog.askopenfilename()), open(f).read(), f) if (f := filedialog.askopenfilename()) else None)
+archivo_menu.add_command(label=" Abrir", image=img_abrir, compound=tk.LEFT, command=abrir_archivo_flujo)
 archivo_menu.add_command(label=" Guardar", image=img_guardar, compound=tk.LEFT, command=lambda: [funcionArchivos.guardar_archivo(obtener_editor_actual(), root), resetear_modificado()])
 archivo_menu.add_command(label=" Guardar como...", image=img_guardar, compound=tk.LEFT, command=guardar_como)
 archivo_menu.add_separator()
@@ -289,7 +305,8 @@ def crear_btn_herr(img, cmd):
     tk.Button(barra_herramientas, image=img, bg=COLOR_EDITOR, activebackground=COLOR_BARRA, relief=tk.FLAT, command=cmd).pack(side=tk.LEFT, padx=2, pady=2)
 
 crear_btn_herr(img_nuevo, lambda: agregar_pestana())
-crear_btn_herr(img_abrir, lambda: agregar_pestana(os.path.basename(f := filedialog.askopenfilename()), open(f).read(), f) if (f := filedialog.askopenfilename()) else None)
+# Antes tenías un lambda aquí, ahora solo pasas la función
+crear_btn_herr(img_abrir, abrir_archivo_flujo)
 crear_btn_herr(img_guardar, lambda: [funcionArchivos.guardar_archivo(obtener_editor_actual(), root), resetear_modificado()])
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
 crear_btn_herr(img_lexico, FunCompilacion.analisis_lexico)
