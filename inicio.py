@@ -60,6 +60,7 @@ img_errores = cargar_icono("errores.png")
 img_resultado = cargar_icono("resultado.png")
 img_archivos = cargar_icono("archivos.png")
 img_salir = cargar_icono("salir.png")
+img_guardarComo = cargar_icono("guardarComo.png")
 
 # ==========================================
 # 3. LÓGICA DE PESTAÑAS Y ARCHIVOS
@@ -171,7 +172,7 @@ archivo_menu = Menu(archivo_btn, tearoff=0, bg=COLOR_FONDO, fg=COLOR_TEXTO)
 archivo_menu.add_command(label=" Nuevo", image=img_nuevo, compound=tk.LEFT, command=lambda: agregar_pestana())
 archivo_menu.add_command(label=" Abrir", image=img_abrir, compound=tk.LEFT, command=lambda: agregar_pestana(os.path.basename(f := filedialog.askopenfilename()), open(f).read(), f) if (f := filedialog.askopenfilename()) else None)
 archivo_menu.add_command(label=" Guardar", image=img_guardar, compound=tk.LEFT, command=lambda: [funcionArchivos.guardar_archivo(obtener_editor_actual(), root), resetear_modificado()])
-archivo_menu.add_command(label=" Guardar como...", image=img_guardar, compound=tk.LEFT, command=guardar_como)
+archivo_menu.add_command(label=" Guardar como...", image=img_guardarComo, compound=tk.LEFT, command=guardar_como)
 archivo_menu.add_separator()
 archivo_menu.add_command(label=" Cerrar", image=img_salir, compound=tk.LEFT, command=cerrar_pestana_actual)
 archivo_menu.add_command(label=" Salir", image=img_salir, compound=tk.LEFT, command=root.quit)
@@ -212,6 +213,8 @@ def crear_btn_herr(img, cmd):
 crear_btn_herr(img_nuevo, lambda: agregar_pestana())
 crear_btn_herr(img_abrir, lambda: agregar_pestana(os.path.basename(f := filedialog.askopenfilename()), open(f).read(), f) if (f := filedialog.askopenfilename()) else None)
 crear_btn_herr(img_guardar, lambda: [funcionArchivos.guardar_archivo(obtener_editor_actual(), root), resetear_modificado()])
+crear_btn_herr(img_guardarComo, lambda: funcionArchivos.guardar_como(editor_text, root))
+
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
 crear_btn_herr(img_lexico, FunCompilacion.analisis_lexico)
 crear_btn_herr(img_sintatico, FunCompilacion.analisis_sintactico)
@@ -238,7 +241,7 @@ resultados_frame = tk.Frame(panel_horizontal, bg=COLOR_FONDO)
 panel_horizontal.add(resultados_frame, width=350)
 tabs_resultados = ttk.Notebook(resultados_frame)
 tabs_resultados.pack(fill=tk.BOTH, expand=True)
-for n in ["Léxico", "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos", "Árbol Sintáctico"]:
+for n in ["Léxico", "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos"]:
     tabs_resultados.add(tk.Frame(tabs_resultados, bg=COLOR_EDITOR), text=n)
 
 # Panel Inferior: Consola + Errores Semánticos
