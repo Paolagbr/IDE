@@ -76,7 +76,7 @@ img_errores = cargar_icono("errores.png")
 img_resultado = cargar_icono("resultado.png")
 img_archivos = cargar_icono("archivos.png")
 img_salir = cargar_icono("salir.png")
-
+img_guardarComo = cargar_icono("guardarComo.png")
 # ==========================================
 # 3. LÓGICA DE PESTAÑAS Y ARCHIVOS
 # ==========================================
@@ -98,31 +98,122 @@ def marcar_como_modificado(event, editor):
         if not nombre.endswith("*"):
             notebook_editor.tab(id_p, text=nombre + " *")
 
+# ==========================================
+# 3. LÓGICA DE PESTAÑAS Y ARCHIVOS (CORREGIDA)
+# ==========================================
+
 def guardar_como():
     editor = obtener_editor_actual()
     if not editor: return
-    archivo = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Archivos de texto", "*.txt"), ("Todos", "*.*")])
+    
+    # Abrir el explorador de archivos
+    archivo = filedialog.asksaveasfilename(
+        defaultextension=".txt", 
+        filetypes=[("Archivos de texto", "*.txt"), ("Todos", "*.*")]
+    )
+    
     if archivo:
         try:
             with open(archivo, "w", encoding="utf-8") as f:
                 f.write(editor.get("1.0", tk.END))
+            
+            # Actualizar el nombre de la pestaña y quitar el asterisco
             id_p = notebook_editor.select()
             notebook_editor.tab(id_p, text=os.path.basename(archivo))
             estados_modificados[id_p] = False
+            
+            # Opcional: Guardar la ruta en el frame para 'Guardar' normal
+            # notebook_editor.nametowidget(id_p).ruta_archivo = archivo
+            
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar: {e}")
 
+# ==========================================
+# 3. LÓGICA DE PESTAÑAS Y ARCHIVOS (CORREGIDA)
+# ==========================================
+
+def guardar_como():
+    editor = obtener_editor_actual()
+    if not editor: return
+    
+    # Abrir el explorador de archivos
+    archivo = filedialog.asksaveasfilename(
+        defaultextension=".txt", 
+        filetypes=[("Archivos de texto", "*.txt"), ("Todos", "*.*")]
+    )
+    
+    if archivo:
+        try:
+            with open(archivo, "w", encoding="utf-8") as f:
+                f.write(editor.get("1.0", tk.END))
+            
+            # Actualizar el nombre de la pestaña y quitar el asterisco
+            id_p = notebook_editor.select()
+            notebook_editor.tab(id_p, text=os.path.basename(archivo))
+            
+            # Guardamos la ruta física en el frame para que 'guardar_simple' la reconozca
+            frame_actual = notebook_editor.nametowidget(id_p)
+            frame_actual.ruta_archivo = archivo
+            
+            estados_modificados[id_p] = False
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar: {e}")
+
+def guardar_simple():
+    # 1. Buscamos qué pestaña está activa usando su ID
+    pestana_id = notebook_editor.select()
+    if not pestana_id: return
+    
+    # 2. Obtenemos el frame físico asociado a ese ID
+    frame_actual = notebook_editor.nametowidget(pestana_id)
+    editor = frame_actual.editor_text
+    
+    # 3. Intentamos recuperar la ruta guardada previamente
+    ruta = getattr(frame_actual, 'ruta_archivo', None)
+
+    if ruta:
+        # SI YA TIENE RUTA: Guardamos directamente sin abrir ventanas
+        try:
+            with open(ruta, "w", encoding="utf-8") as f:
+                f.write(editor.get("1.0", tk.END))
+            
+            # Quitamos el asterisco de modificado (*)
+            nombre_actual = notebook_editor.tab(pestana_id, "text")
+            if nombre_actual.endswith(" *"):
+                notebook_editor.tab(pestana_id, text=nombre_actual.replace(" *", ""))
+            
+            estados_modificados[pestana_id] = False
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar: {e}")
+    else:
+        # SI NO TIENE RUTA: Es un archivo nuevo, pedimos nombre
+        guardar_como()
+
 def cerrar_pestana_actual(index=None):
-    if index is None:
-        try: index = notebook_editor.index("current")
-        except: return
-    id_p = notebook_editor.tabs()[index]
-    if estados_modificados.get(id_p, False):
-        res = messagebox.askyesnocancel("Guardar cambios", "¿Deseas guardar los cambios antes de cerrar?")
-        if res is True:
-            funcionArchivos.guardar_archivo(obtener_editor_actual(), root)
-        elif res is None: return
-    notebook_editor.forget(id_p)
+    try:
+        # Si no nos pasan un índice, intentamos obtener el de la pestaña seleccionada
+        if index is None:
+            index = notebook_editor.index("current")
+        
+        # Obtenemos el ID único de la pestaña
+        id_p = notebook_editor.tabs()[index]
+        
+        # Verificamos si tiene cambios sin guardar antes de cerrar
+        if estados_modificados.get(id_p, False):
+            res = messagebox.askyesnocancel("Guardar cambios", "¿Deseas guardar los cambios antes de cerrar?")
+            if res is True:
+                guardar_simple() # Llama a tu lógica de guardado inteligente
+            elif res is None: # Si el usuario dio en "Cancelar", no hacemos nada
+                return
+        
+        # Cerramos físicamente la pestaña
+        notebook_editor.forget(id_p)
+        
+    except tk.TclError:
+        # Esto evita errores si intentas cerrar cuando no hay pestañas abiertas
+        pass
 
 # def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
 #     frame_pestana = tk.Frame(notebook_editor, bg=COLOR_EDITOR)
@@ -177,6 +268,8 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     frame_pestana = tk.Frame(notebook_editor, bg=COLOR_EDITOR)
     editor_container = tk.Frame(frame_pestana, bg=COLOR_EDITOR)
     editor_container.pack(fill=tk.BOTH, expand=True)
+    
+    frame_pestana.ruta_archivo = ruta
 
     # 1. Widget de números de línea
     line_numbers = tk.Text(editor_container, width=4, padx=5, takefocus=0, border=0, 
@@ -265,8 +358,10 @@ archivo_btn = tk.Menubutton(barra_superior, text="Archivo", image=img_archivos, 
 archivo_menu = Menu(archivo_btn, tearoff=0, bg=COLOR_FONDO, fg=COLOR_TEXTO)
 archivo_menu.add_command(label=" Nuevo", image=img_nuevo, compound=tk.LEFT, command=lambda: agregar_pestana())
 archivo_menu.add_command(label=" Abrir", image=img_abrir, compound=tk.LEFT, command=abrir_archivo_flujo)
-archivo_menu.add_command(label=" Guardar", image=img_guardar, compound=tk.LEFT, command=lambda: [funcionArchivos.guardar_archivo(obtener_editor_actual(), root), resetear_modificado()])
-archivo_menu.add_command(label=" Guardar como...", image=img_guardar, compound=tk.LEFT, command=guardar_como)
+archivo_menu.add_command(label=" Guardar", image=img_guardar, compound=tk.LEFT, 
+                         command=guardar_simple) # Cambiado para usar la lógica local
+archivo_menu.add_command(label=" Guardar como...", image=img_guardarComo, compound=tk.LEFT, 
+                         command=guardar_como)
 archivo_menu.add_separator()
 archivo_menu.add_command(label=" Cerrar", image=img_salir, compound=tk.LEFT, command=cerrar_pestana_actual)
 archivo_menu.add_command(label=" Salir", image=img_salir, compound=tk.LEFT, command=root.quit)
@@ -307,7 +402,10 @@ def crear_btn_herr(img, cmd):
 crear_btn_herr(img_nuevo, lambda: agregar_pestana())
 # Antes tenías un lambda aquí, ahora solo pasas la función
 crear_btn_herr(img_abrir, abrir_archivo_flujo)
-crear_btn_herr(img_guardar, lambda: [funcionArchivos.guardar_archivo(obtener_editor_actual(), root), resetear_modificado()])
+# CORREGIDO: Usamos obtener_editor_actual() en lugar de la variable editor_text
+crear_btn_herr(img_guardar, lambda: guardar_simple())
+crear_btn_herr(img_guardarComo, lambda: guardar_como())
+crear_btn_herr(img_salir, cerrar_pestana_actual)
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
 crear_btn_herr(img_lexico, FunCompilacion.analisis_lexico)
 crear_btn_herr(img_sintatico, FunCompilacion.analisis_sintactico)
@@ -334,7 +432,7 @@ resultados_frame = tk.Frame(panel_horizontal, bg=COLOR_FONDO)
 panel_horizontal.add(resultados_frame, width=350)
 tabs_resultados = ttk.Notebook(resultados_frame)
 tabs_resultados.pack(fill=tk.BOTH, expand=True)
-for n in ["Léxico", "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos", "Árbol Sintáctico"]:
+for n in ["Léxico", "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos"]:
     tabs_resultados.add(tk.Frame(tabs_resultados, bg=COLOR_EDITOR), text=n)
 
 # Panel Inferior: Consola + Errores Semánticos
