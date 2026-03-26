@@ -12,11 +12,16 @@ from PIL import Image, ImageTk
 import os
 
 # ==========================================
-# 1. CONFIGURACIÓN Y ESTILOS (NORDIC FROST)
+# 1. CONFIGURACIÓN Y VARIABLES GLOBALES
 # ==========================================
+#VARIABLES
+tabla_tokens = None
+consola_errores_lexicos = None
+
+#VENTANDA
 root = tk.Tk()
 root.title("Editor de Código")
-root.geometry("1200x800") # CORREGIDO: "x" en lugar de "Cav"
+root.geometry("1200x800") 
 
 COLOR_FONDO =  "#2E3440"
 COLOR_EDITOR = "#3B4252"
@@ -214,56 +219,6 @@ def cerrar_pestana_actual(index=None):
     except tk.TclError:
         # Esto evita errores si intentas cerrar cuando no hay pestañas abiertas
         pass
-
-# def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
-#     frame_pestana = tk.Frame(notebook_editor, bg=COLOR_EDITOR)
-#     editor_container = tk.Frame(frame_pestana, bg=COLOR_EDITOR)
-#     editor_container.pack(fill=tk.BOTH, expand=True)
-
-#     line_numbers = tk.Text(editor_container, width=4, padx=5, takefocus=0, border=0, 
-#                            bg="#2E3440", fg="#D8DEE9", state="disabled", font=FUENTE_EDITOR)
-#     line_numbers.pack(side=tk.LEFT, fill=tk.Y)
-
-#     editor_text = tk.Text(editor_container, undo=True, wrap="none",
-#                            bg=COLOR_EDITOR, 
-#                           fg=COLOR_TEXTO, insertbackground="white",
-#                             borderwidth=0, font=FUENTE_EDITOR)
-#     editor_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-#     editor_text.insert("1.0", contenido)
-    
-#     frame_pestana.editor_text = editor_text
-#     frame_pestana.line_numbers = line_numbers
-#     editor_text.tag_configure("active_line", background=COLOR_HIGHLIGHT)
-
-#     # def sincronizar_scroll(*args):
-#     #     line_numbers.yview(*args)
-#     #     editor_text.yview(*args)
-    
-#     def sincronizar_scroll(*args):
-#         line_numbers.yview(*args)
-#         editor_text.yview(*args)
-
-#     scrollbar = tk.Scrollbar(editor_container, command=sincronizar_scroll)
-#     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-#     editor_text.config(yscrollcommand=scrollbar.set)
-#     line_numbers.config(yscrollcommand=scrollbar.set)
-#     editor_text.bind("<KeyRelease>", lambda e: [
-#         actualizar_todo_local(editor_text, line_numbers),
-#         marcar_como_modificado(e, editor_text),
-#         actualizar_estado_cursor()
-#     ])
-#     editor_text.bind("<Button-1>", lambda e: root.after(10, lambda: actualizar_todo_local(editor_text, line_numbers)))
-#     editor_text.bind("<ButtonRelease>", actualizar_estado_cursor)
-#     editor_text.bind("<Motion>", actualizar_estado_cursor)
-#     notebook_editor.add(frame_pestana, text=nombre)
-#     notebook_editor.select(frame_pestana)
-#     # Sincroniza cuando usas la rueda del ratón
-#     editor_text.bind("<MouseWheel>", lambda e: line_numbers.yview_scroll(int(-1*(e.delta/120)), "units"))
-#     # Para Linux (si fuera el caso)
-#     editor_text.bind("<Button-4>", lambda e: line_numbers.yview_scroll(-1, "units"))
-#     editor_text.bind("<Button-5>", lambda e: line_numbers.yview_scroll(1, "units"))
-#     estados_modificados[notebook_editor.select()] = False
-#     actualizar_todo_local(editor_text, line_numbers)
 def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     frame_pestana = tk.Frame(notebook_editor, bg=COLOR_EDITOR)
     editor_container = tk.Frame(frame_pestana, bg=COLOR_EDITOR)
@@ -383,7 +338,11 @@ compilar_btn.pack(side=tk.LEFT, padx=5)
 def crear_btn_sup(texto, icono, comando):
     tk.Button(barra_superior, text=texto, image=icono, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, command=comando, padx=10).pack(side=tk.LEFT)
 
-crear_btn_sup("Léxico", img_lexico, FunCompilacion.analisis_lexico)
+crear_btn_sup("Léxico", img_lexico, lambda: FunCompilacion.analisis_lexico(
+    obtener_editor_actual(), 
+    tabla_tokens, 
+    consola_errores_lexicos
+))
 crear_btn_sup("Sintáctico", img_sintatico, FunCompilacion.analisis_sintactico)
 crear_btn_sup("Semántico", img_semantico, FunCompilacion.analisis_semantico)
 crear_btn_sup("Intermedio", None, FunCompilacion.codigo_intermedio)
@@ -435,6 +394,19 @@ tabs_resultados.pack(fill=tk.BOTH, expand=True)
 for n in ["Léxico", "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos"]:
     tabs_resultados.add(tk.Frame(tabs_resultados, bg=COLOR_EDITOR), text=n)
 
+# Pestaña Léxico con una Tabla (Treeview)
+frame_lexico = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
+tabs_resultados.add(frame_lexico, text="Léxico")
+
+tabla_tokens = ttk.Treeview(frame_lexico, columns=("Tipo", "Valor", "Línea"), show='headings')
+tabla_tokens.heading("Tipo", text="Tipo")
+tabla_tokens.heading("Valor", text="Valor")
+tabla_tokens.heading("Línea", text="Línea")
+tabla_tokens.column("Tipo", width=100)
+tabla_tokens.column("Valor", width=150)
+tabla_tokens.column("Línea", width=50)
+tabla_tokens.pack(fill=tk.BOTH, expand=True)
+
 # Panel Inferior: Consola + Errores Semánticos
 frame_inferior = tk.Frame(panel_vertical, bg=COLOR_FONDO)
 panel_vertical.add(frame_inferior, height=200)
@@ -443,6 +415,10 @@ tabs_consola.pack(fill=tk.BOTH, expand=True)
 for n in ["Errores Léxicos", "Errores Sintácticos", "Errores Semánticos", "Resultados"]:
     tabs_consola.add(tk.Frame(tabs_consola, bg=COLOR_EDITOR), text=n, image=img_errores if "Errores" in n else img_resultado, compound=tk.LEFT)
 
+frame_err_lex = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
+tabs_consola.add(frame_err_lex, text="Errores Léxicos", image=img_errores, compound=tk.LEFT)
+consola_errores_lexicos = tk.Text(frame_err_lex, bg="#2E3440", fg="#FF5555", font=('Consolas', 10))
+consola_errores_lexicos.pack(fill=tk.BOTH, expand=True)
 # ==========================================
 # 6. FUNCIONES DE APOYO
 # ==========================================
