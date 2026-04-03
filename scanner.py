@@ -1,6 +1,7 @@
 import re
 
 class Scanner:
+  
     def __init__(self):
         # Definición de Categorías y Colores según el PDF [cite: 11-16]
         self.COLORS = {
@@ -74,3 +75,22 @@ class Scanner:
             })
                 
         return tokens
+    #Colores para cada uno de los tokens
+    def aplicar_colores(self, editor, tokens):
+        import tkinter as tk # Importación local para evitar conflictos
+        
+        # 1. Limpiar colores
+        for tag in ["color1", "color2", "color3", "color4", "color5", "color6", "red"]:
+            editor.tag_remove(tag, "1.0", tk.END)
+            
+        # 2. Aplicar colores
+        for t in tokens:
+            # Si el color es 'black', no necesitamos aplicar tag (es el default)
+            if t['color'] == 'black':
+                continue
+                
+            inicio = f"{t['linea']}.{t['col'] - 1}"
+            # Calculamos el fin basándonos en el largo del valor
+            fin = f"{t['linea']}.{t['col'] - 1 + len(str(t['valor']))}"
+            
+            editor.tag_add(t['color'], inicio, fin)

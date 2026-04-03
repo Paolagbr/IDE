@@ -238,7 +238,14 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
                           borderwidth=0, font=FUENTE_EDITOR)
     editor_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
     editor_text.insert("1.0", contenido)
-    
+    # Colores para cada tokens.
+    editor_text.tag_configure("color1", foreground="#D08770") # Números (Naranja)
+    editor_text.tag_configure("color2", foreground="#8FBCBB") # Identificadores (Cian claro)
+    editor_text.tag_configure("color3", foreground="#4C566A") # Comentarios (Gris/Oculto)
+    editor_text.tag_configure("color4", foreground="#B48EAD") # Reservadas (Púrpura)
+    editor_text.tag_configure("color5", foreground="#A3BE8C") # Aritméticos (Verde)
+    editor_text.tag_configure("color6", foreground="#81A1C1") # Lógicos/Relacionales (Azul)
+    editor_text.tag_configure("red",    foreground="#BF616A") # Errores (Rojo)
     # Referencias necesarias para funciones externas
     frame_pestana.editor_text = editor_text
     frame_pestana.line_numbers = line_numbers
@@ -269,9 +276,15 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     editor_text.bind("<KeyRelease>", lambda e: [
         actualizar_todo_local(editor_text, line_numbers),
         marcar_como_modificado(e, editor_text),
-        actualizar_estado_cursor()
+        actualizar_estado_cursor(),
+        ejecutar_resaltado_rapido(editor_text)
     ])
-    
+    def ejecutar_resaltado_rapido(editor):
+        from scanner import Scanner
+        sc = Scanner()
+        codigo = editor.get("1.0", tk.END)
+        tokens = sc.analizar(codigo)
+        sc.aplicar_colores(editor, tokens)
     # Detecta clics para actualizar el resaltado de línea actual
     editor_text.bind("<Button-1>", lambda e: root.after(10, lambda: actualizar_todo_local(editor_text, line_numbers)))
     editor_text.bind("<ButtonRelease>", actualizar_estado_cursor)
@@ -391,7 +404,7 @@ resultados_frame = tk.Frame(panel_horizontal, bg=COLOR_FONDO)
 panel_horizontal.add(resultados_frame, width=350)
 tabs_resultados = ttk.Notebook(resultados_frame)
 tabs_resultados.pack(fill=tk.BOTH, expand=True)
-for n in ["Léxico", "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos"]:
+for n in [ "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos"]:
     tabs_resultados.add(tk.Frame(tabs_resultados, bg=COLOR_EDITOR), text=n)
 
 # Pestaña Léxico con una Tabla (Treeview)
@@ -412,7 +425,7 @@ frame_inferior = tk.Frame(panel_vertical, bg=COLOR_FONDO)
 panel_vertical.add(frame_inferior, height=200)
 tabs_consola = ttk.Notebook(frame_inferior)
 tabs_consola.pack(fill=tk.BOTH, expand=True)
-for n in ["Errores Léxicos", "Errores Sintácticos", "Errores Semánticos", "Resultados"]:
+for n in [ "Errores Sintácticos", "Errores Semánticos", "Resultados"]:
     tabs_consola.add(tk.Frame(tabs_consola, bg=COLOR_EDITOR), text=n, image=img_errores if "Errores" in n else img_resultado, compound=tk.LEFT)
 
 frame_err_lex = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
