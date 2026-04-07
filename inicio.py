@@ -279,12 +279,19 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
         actualizar_estado_cursor(),
         ejecutar_resaltado_rapido(editor_text)
     ])
+    def actualizar_tabla_visual(tokens):
+        for item in tabla_tokens.get_children():
+            tabla_tokens.delete(item)
+        for t in tokens:
+            tabla_tokens.insert('', tk.END, values=(t['tipo'], t['valor'], t['linea']))
     def ejecutar_resaltado_rapido(editor):
         from scanner import Scanner
         sc = Scanner()
         codigo = editor.get("1.0", tk.END)
-        tokens = sc.analizar(codigo)
-        sc.aplicar_colores(editor, tokens)
+        tokens_tabla, tokens_colores = sc.analizar(codigo)
+        sc.aplicar_colores(editor, tokens_colores)
+        actualizar_tabla_visual(tokens_tabla)
+
     # Detecta clics para actualizar el resaltado de línea actual
     editor_text.bind("<Button-1>", lambda e: root.after(10, lambda: actualizar_todo_local(editor_text, line_numbers)))
     editor_text.bind("<ButtonRelease>", actualizar_estado_cursor)

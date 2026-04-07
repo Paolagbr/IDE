@@ -18,26 +18,27 @@ class Scanner:
 
         # Palabras reservadas solicitadas [cite: 13]
         self.RESERVADAS = {'if', 'else', 'end', 'do', 'while', 'switch', 'case', 'int', 'float', 'main', 'cin', 'cout'}
-
     def analizar(self, codigo_fuente):
-        tokens = []
+        tokens_para_tabla = []   # Lo que va al Treeview (sin comentarios)
+        tokens_para_colores = [] # Todo lo que se debe pintar (incluye comentarios)
+        
         linea = 1
         columna_inicio = 0
         
-        # Expresiones regulares basadas en los requerimientos [cite: 11-19, 39]
+        # Usamos self.token_patterns si lo tienes en el init, o defínelo aquí mismo
         token_patterns = [
-            ('COMENTARIO_MULTI', r'/\*[\s\S]*?\*/'),          # Estilo C [cite: 12, 22]
-            ('COMENTARIO_SIMPLE', r'//.*'),                   # Estilo C [cite: 12, 22]
-            ('NUMERO_REAL',      r'\d+\.\d+'),                # Color 1 [cite: 11]
-            ('NUMERO_ENTERO',    r'\d+'),                     # Color 1 [cite: 11]
-            ('IDENTIFICADOR',    r'[a-zA-Z][a-zA-Z0-9]*'),    # Color 2 [cite: 12]
-            ('OP_ARITMETICO',    r'\+\+|--|\+|-|\*|/|%|\^'),   # Color 5 [cite: 14]
-            ('OP_LOG_REL',       r'<=|>=|!=|==|&&|\|\||<|>|!|and|or|not'), # Color 6 [cite: 15, 16]
-            ('ASIGNACION',       r'='),                       # [cite: 19]
-            ('SIMBOLO',          r'\(|\)|\{|\}|,|;|\'|\"'),   # [cite: 18]
-            ('ESPACIO',          r'[ \t]+'),
-            ('NUEVA_LINEA',      r'\n'),
-            ('ERROR',            r'.'),                       # Caracteres inválidos [cite: 23]
+            ('COMENTARIO_MULTI', r'/\*[\s\S]*?\*/'),
+            ('COMENTARIO_SIMPLE', r'//.*'),
+            ('NUMERO_REAL', r'\d+\.\d+'),
+            ('NUMERO_ENTERO', r'\d+'),
+            ('IDENTIFICADOR', r'[a-zA-Z][a-zA-Z0-9]*'),
+            ('OP_ARITMETICO', r'\+\+|--|\+|-|\*|/|%|\^'),
+            ('OP_LOG_REL', r'<=|>=|!=|==|&&|\|\||<|>|!|and|or|not'),
+            ('ASIGNACION', r'='),
+            ('SIMBOLO', r'\(|\)|\{|\}|,|;|\'|\"'),
+            ('ESPACIO', r'[ \t]+'),
+            ('NUEVA_LINEA', r'\n'),
+            ('ERROR', r'.'),
         ]
         
         combined_regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in token_patterns)
@@ -54,7 +55,7 @@ class Scanner:
             elif kind == 'ESPACIO':
                 continue
                 
-            # Clasificación final
+            # Clasificación de color
             if kind == 'IDENTIFICADOR' and value in self.RESERVADAS:
                 tipo_final = 'RESERVADA'
             elif kind in ['COMENTARIO_MULTI', 'COMENTARIO_SIMPLE']:
@@ -63,18 +64,34 @@ class Scanner:
                 tipo_final = 'NUMERO'
             else:
                 tipo_final = kind
-                
+            
             color = self.COLORS.get(tipo_final, 'black')
             
-            tokens.append({
+            # Creamos el token
+            token_info = {
                 'tipo': tipo_final, 
                 'valor': value, 
                 'linea': linea, 
                 'col': columna, 
                 'color': color
-            })
+            }
+
+            # --- LA LÓGICA DE FILTRADO ---
+            # 1. Siempre lo agregamos a la lista de colores (para que se pinte)
+            tokens_para_colores.append(token_info)
+
+            # 2. Solo si NO es comentario, lo agregamos a la tabla
+            if tipo_final != 'COMENTARIO':
+                tokens_para_tabla.append(token_info)
+
+            # Manejo de líneas para comentarios multilínea (para que no se desfase el color)
+            if tipo_final == 'COMENTARIO' and '\n' in value:
+                linea += value.count('\n')
+                columna_inicio = match.start() + value.rfind('\n') + 1
                 
-        return tokens
+        # IMPORTANTE: Regresamos las dos listas
+        return tokens_para_tabla, tokens_para_colores
+   
     #Colores para cada uno de los tokens
     def aplicar_colores(self, editor, tokens):
         import tkinter as tk

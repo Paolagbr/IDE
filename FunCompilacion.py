@@ -36,37 +36,28 @@ def ejecutar_fase(fase):
 
 # def analisis_lexico():
 #     ejecutar_fase("lexico")
-def analisis_lexico(editor_actual, tabla_ui, consola_err_ui):
-    if not editor_actual: return
+def analisis_lexico(editor, tabla, consola):
+    if not editor: return
     
-    # 1. Obtener el código del editor
-    codigo = editor_actual.get("1.0", tk.END)
-    
-    # 2. Instanciar y ejecutar el scanner
+    from scanner import Scanner
     sc = Scanner()
-    resultado = sc.analizar(codigo)
+    codigo = editor.get("1.0", "end-1c")
     
-    # 3. Limpiar interfaces previas
-    for item in tabla_ui.get_children():
-        tabla_ui.delete(item)
-    consola_err_ui.config(state="normal")
-    consola_err_ui.delete("1.0", tk.END)
+    # 1. RECIBE LAS DOS LISTAS (Esto arregla el error)
+    tokens_validos, tokens_con_errores = sc.analizar(codigo)
     
-    # 4. Llenar la tabla y detectar errores
-    hay_errores = False
-    for t in resultado:
-        if t['tipo'] == 'ERROR':
-            hay_errores = True
-            msg = f">>> Error Léxico: Carácter '{t['valor']}' no válido en Línea {t['linea']}, Col {t['col']}\n"
-            consola_err_ui.insert(tk.END, msg)
-        else:
-            tabla_ui.insert("", tk.END, values=(t['tipo'], t['valor'], t['linea']))
+    # 2. LIMPIAR TABLA Y CONSOLA
+    for i in tabla.get_children(): tabla.delete(i)
+    consola.delete("1.0", "end")
     
-    if not hay_errores:
-        consola_err_ui.insert(tk.END, "Análisis léxico terminado sin errores.")
+    # 3. LLENAR LA TABLA (Usamos tokens_validos)
+    for t in tokens_validos:
+        tabla.insert('', 'end', values=(t['tipo'], t['valor'], t['linea']))
     
-    consola_err_ui.config(state="disabled")
-
+    # 4. MOSTRAR ERRORES EN LA CONSOLA (Usamos tokens_con_errores)
+    for t in tokens_con_errores:
+        if t['tipo'] == 'ERROR': # <--- Ahora esto sí funcionará
+            consola.insert("end", f">>> Error léxico: '{t['valor']}' en línea {t['linea']}\n")
 def analisis_sintactico():
     ejecutar_fase("sintactico")
 
