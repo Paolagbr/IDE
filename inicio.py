@@ -241,7 +241,7 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     # Colores para cada tokens.
     editor_text.tag_configure("color1", foreground="#D08770") # Números (Naranja)
     editor_text.tag_configure("color2", foreground="#8FBCBB") # Identificadores (Cian claro)
-    editor_text.tag_configure("color3", foreground="#4C566A") # Comentarios (Gris/Oculto)
+    editor_text.tag_configure("color3", foreground="#34383F") # Comentarios (Gris/Oculto)
     editor_text.tag_configure("color4", foreground="#B48EAD") # Reservadas (Púrpura)
     editor_text.tag_configure("color5", foreground="#A3BE8C") # Aritméticos (Verde)
     editor_text.tag_configure("color6", foreground="#81A1C1") # Lógicos/Relacionales (Azul)
