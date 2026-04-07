@@ -77,20 +77,35 @@ class Scanner:
         return tokens
     #Colores para cada uno de los tokens
     def aplicar_colores(self, editor, tokens):
-        import tkinter as tk # Importación local para evitar conflictos
+        import tkinter as tk
         
-        # 1. Limpiar colores
+        # 1. Limpiar colores previos en todo el documento
         for tag in ["color1", "color2", "color3", "color4", "color5", "color6", "red"]:
             editor.tag_remove(tag, "1.0", tk.END)
             
-        # 2. Aplicar colores
+        # 2. Aplicar colores nuevos
         for t in tokens:
-            # Si el color es 'black', no necesitamos aplicar tag (es el default)
             if t['color'] == 'black':
                 continue
                 
+            # Posición de inicio: "linea.columna"
             inicio = f"{t['linea']}.{t['col'] - 1}"
-            # Calculamos el fin basándonos en el largo del valor
-            fin = f"{t['linea']}.{t['col'] - 1 + len(str(t['valor']))}"
             
+            # --- LÓGICA PARA COMENTARIOS MULTILÍNEA ---
+            valor_token = str(t['valor'])
+            num_saltos = valor_token.count('\n')
+            
+            if num_saltos > 0:
+                # Si el token tiene saltos de línea (como /* ... */)
+                # Calculamos la línea final sumando los saltos
+                linea_fin = t['linea'] + num_saltos
+                # La columna final es el largo de la última parte del texto tras el último \n
+                ultima_linea_contenido = valor_token.split('\n')[-1]
+                col_fin = len(ultima_linea_contenido)
+                fin = f"{linea_fin}.{col_fin}"
+            else:
+                # Si es una sola línea (comportamiento normal)
+                fin = f"{t['linea']}.{t['col'] - 1 + len(valor_token)}"
+            
+            # Pintamos el color desde el inicio calculado hasta el fin calculado
             editor.tag_add(t['color'], inicio, fin)
