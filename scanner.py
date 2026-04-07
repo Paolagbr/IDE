@@ -16,16 +16,14 @@ class Scanner:
             'ERROR': 'red'
         }
 
-        # Palabras reservadas solicitadas [cite: 13]
         self.RESERVADAS = {'if', 'else', 'end', 'do', 'while', 'switch', 'case', 'int', 'float', 'main', 'cin', 'cout'}
     def analizar(self, codigo_fuente):
-        tokens_para_tabla = []   # Lo que va al Treeview (sin comentarios)
-        tokens_para_colores = [] # Todo lo que se debe pintar (incluye comentarios)
+        tokens_para_tabla = []   
+        tokens_para_colores = [] 
         
         linea = 1
         columna_inicio = 0
         
-        # Usamos self.token_patterns si lo tienes en el init, o defínelo aquí mismo
         token_patterns = [
             ('COMENTARIO_MULTI', r'/\*[\s\S]*?\*/'),
             ('COMENTARIO_SIMPLE', r'//.*'),
@@ -76,20 +74,18 @@ class Scanner:
                 'color': color
             }
 
-            # --- LA LÓGICA DE FILTRADO ---
-            # 1. Siempre lo agregamos a la lista de colores (para que se pinte)
+            # --- LA LÓGICA DE FILTRADO EN LA TABLA DE LEXICO ---
             tokens_para_colores.append(token_info)
 
-            # 2. Solo si NO es comentario, lo agregamos a la tabla
-            if tipo_final != 'COMENTARIO':
+            if tipo_final != 'COMENTARIO' and tipo_final != 'ERROR':
                 tokens_para_tabla.append(token_info)
 
-            # Manejo de líneas para comentarios multilínea (para que no se desfase el color)
             if tipo_final == 'COMENTARIO' and '\n' in value:
                 linea += value.count('\n')
                 columna_inicio = match.start() + value.rfind('\n') + 1
-                
-        # IMPORTANTE: Regresamos las dos listas
+
+          
+      
         return tokens_para_tabla, tokens_para_colores
    
     #Colores para cada uno de los tokens
