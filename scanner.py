@@ -17,7 +17,82 @@ class Scanner:
         }
 
         self.RESERVADAS = {'if', 'else', 'end', 'do', 'while', 'switch', 'case', 'int', 'float', 'main', 'cin', 'cout'}
+    # def analizar(self, codigo_fuente):
+    #     tokens_para_tabla = []   
+    #     tokens_para_colores = [] 
+        
+    #     linea = 1
+    #     columna_inicio = 0
+        
+    #     token_patterns = [
+    #         ('COMENTARIO_MULTI', r'/\*[\s\S]*?\*/'),
+    #         ('COMENTARIO_SIMPLE', r'//.*'),
+    #         ('OP_ARITMETICO', r'\+\+|--|\+|-|\*|/|%|\^'), 
+    #         ('OP_LOG_REL', r'<=|>=|!=|==|&&|\|\||<|>|!|and|or|not'),
+    #         ('ASIGNACION', r'='),
+    #         ('NUMERO_REAL', r'\d+\.\d+'),
+    #         ('ERROR_REAL', r'\d+\.'),
+    #         ('NUMERO_ENTERO', r'\d+'),
+    #         ('IDENTIFICADOR', r'[a-zA-Z][a-zA-Z0-9]*'),
+    #         ('SIMBOLO', r'\(|\)|\{|\}|,|;|\'|\"'),
+    #         ('ESPACIO', r'[ \t]+'),
+    #         ('NUEVA_LINEA', r'\n'),
+    #         ('ERROR', r'.')
+            
+    #     ]
+        
+    #     combined_regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in token_patterns)
+        
+    #     for match in re.finditer(combined_regex, codigo_fuente):
+    #         kind = match.lastgroup
+    #         value = match.group()
+    #         columna = match.start() - columna_inicio + 1
+            
+    #         if kind == 'NUEVA_LINEA':
+    #             columna_inicio = match.end()
+    #             linea += 1
+    #             continue
+    #         elif kind == 'ESPACIO':
+    #             continue
+                
+    #         # Clasificación de color
+    #         if kind == 'IDENTIFICADOR' and value in self.RESERVADAS:
+    #             tipo_final = 'RESERVADA'
+    #         elif kind in ['COMENTARIO_MULTI', 'COMENTARIO_SIMPLE']:
+    #             tipo_final = 'COMENTARIO'
+    #         elif kind in ['NUMERO_REAL', 'NUMERO_ENTERO']:
+    #             tipo_final = 'NUMERO'
+    #         elif kind == 'ERROR_REAL': 
+    #             tipo_final = 'ERROR'
+    #         else:
+    #             tipo_final = kind
+            
+    #         color = self.COLORS.get(tipo_final, 'black')
+            
+    #         # Creamos el token
+    #         token_info = {
+    #             'tipo': tipo_final, 
+    #             'valor': value, 
+    #             'linea': linea, 
+    #             'col': columna, 
+    #             'color': color
+    #         }
+
+    #         # --- LA LÓGICA DE FILTRADO EN LA TABLA DE LEXICO ---
+    #         tokens_para_colores.append(token_info)
+
+    #         if tipo_final != 'COMENTARIO' and tipo_final != 'ERROR':
+    #             tokens_para_tabla.append(token_info)
+
+    #         if tipo_final == 'COMENTARIO' and '\n' in value:
+    #             linea += value.count('\n')
+    #             columna_inicio = match.start() + value.rfind('\n') + 1
+
+          
+      
+    #     return tokens_para_tabla, tokens_para_colores
     def analizar(self, codigo_fuente):
+        import re
         tokens_para_tabla = []   
         tokens_para_colores = [] 
         
@@ -27,67 +102,116 @@ class Scanner:
         token_patterns = [
             ('COMENTARIO_MULTI', r'/\*[\s\S]*?\*/'),
             ('COMENTARIO_SIMPLE', r'//.*'),
-            ('NUMERO_REAL', r'\d+\.\d+'),
-            ('NUMERO_ENTERO', r'\d+'),
-            ('IDENTIFICADOR', r'[a-zA-Z][a-zA-Z0-9]*'),
-            ('OP_ARITMETICO', r'\+\+|--|\+|-|\*|/|%|\^'),
-            ('OP_LOG_REL', r'<=|>=|!=|==|&&|\|\||<|>|!|and|or|not'),
-            ('ASIGNACION', r'='),
-            ('SIMBOLO', r'\(|\)|\{|\}|,|;|\'|\"'),
             ('ESPACIO', r'[ \t]+'),
             ('NUEVA_LINEA', r'\n'),
-            ('ERROR', r'.'),
+            # Definimos los operadores base
+            ('OP_ARITMETICO', r'\+\+|--|\+|-|\*|/|%|\^'), 
+            ('OP_LOG_REL', r'<=|>=|!=|==|&&|\|\||<|>|!|and|or|not'),
+            ('ASIGNACION', r'='),
+            ('NUMERO_REAL', r'\d+\.\d+'),
+            ('ERROR_REAL', r'\d+\.'), 
+            ('NUMERO_ENTERO', r'\d+'),
+            ('IDENTIFICADOR', r'[a-zA-Z][a-zA-Z0-9]*'),
+            ('SIMBOLO', r'\(|\)|\{|\}|,|;|\'|\"'),
+            ('ERROR', r'.')
         ]
         
         combined_regex = '|'.join(f'(?P<{name}>{pattern})' for name, pattern in token_patterns)
+        matches = list(re.finditer(combined_regex, codigo_fuente))
         
-        for match in re.finditer(combined_regex, codigo_fuente):
+        # Diccionario de parejas que se pueden fusionar
+        parejas_fusion = {
+            '+': '+', '-': '-', '=': '=', '!': '=', '<': '=', '>': '='
+        }
+
+        i = 0
+        while i < len(matches):
+            match = matches[i]
             kind = match.lastgroup
             value = match.group()
             columna = match.start() - columna_inicio + 1
-            
+
+            # --- LÓGICA DE FUSIÓN MULTI-LÍNEA ---
+            if value in parejas_fusion:
+                j = i + 1
+                lineas_saltadas = 0
+                temp_columna_inicio = columna_inicio
+                encontro_par = False
+                
+                while j < len(matches):
+                    next_m = matches[j]
+                    if next_m.lastgroup == 'ESPACIO':
+                        j += 1
+                        continue
+                    if next_m.lastgroup == 'NUEVA_LINEA':
+                        lineas_saltadas += 1
+                        temp_columna_inicio = next_m.end()
+                        j += 1
+                        continue
+                    
+                    # Verificamos si el siguiente token completa la pareja (ej. + con +, o ! con =)
+                    if next_m.group() == parejas_fusion[value]:
+                        encontro_par = True
+                    break
+                
+                if encontro_par:
+                    valor_fusionado = value + parejas_fusion[value]
+                    # Determinamos el tipo final del token fusionado
+                    tipo_f = 'OP_LOG_REL' if valor_fusionado in ['==', '!=', '<=', '>='] else 'OP_ARITMETICO'
+                    
+                    token_info = {
+                        'tipo': tipo_f, 'valor': valor_fusionado,
+                        'linea': linea, 'col': columna,
+                        'color': self.COLORS.get(tipo_f, 'black')
+                    }
+                    tokens_para_colores.append(token_info)
+                    tokens_para_tabla.append(token_info)
+                    
+                    # CRITICAL: Actualizamos la posición global del scanner
+                    linea += lineas_saltadas
+                    columna_inicio = temp_columna_inicio
+                    i = j + 1 
+                    continue
+
+            # --- MANEJO NORMAL DE SALTOS Y ESPACIOS ---
             if kind == 'NUEVA_LINEA':
                 columna_inicio = match.end()
                 linea += 1
+                i += 1
                 continue
             elif kind == 'ESPACIO':
+                i += 1
                 continue
-                
-            # Clasificación de color
+
+            # --- CLASIFICACIÓN Y FILTRADO ---
             if kind == 'IDENTIFICADOR' and value in self.RESERVADAS:
                 tipo_final = 'RESERVADA'
             elif kind in ['COMENTARIO_MULTI', 'COMENTARIO_SIMPLE']:
                 tipo_final = 'COMENTARIO'
             elif kind in ['NUMERO_REAL', 'NUMERO_ENTERO']:
                 tipo_final = 'NUMERO'
+            elif kind == 'ERROR_REAL': 
+                tipo_final = 'ERROR'
             else:
                 tipo_final = kind
             
-            color = self.COLORS.get(tipo_final, 'black')
-            
-            # Creamos el token
             token_info = {
-                'tipo': tipo_final, 
-                'valor': value, 
-                'linea': linea, 
-                'col': columna, 
-                'color': color
+                'tipo': tipo_final, 'valor': value, 
+                'linea': linea, 'col': columna, 
+                'color': self.COLORS.get(tipo_final, 'black')
             }
 
-            # --- LA LÓGICA DE FILTRADO EN LA TABLA DE LEXICO ---
             tokens_para_colores.append(token_info)
-
             if tipo_final != 'COMENTARIO' and tipo_final != 'ERROR':
                 tokens_para_tabla.append(token_info)
 
-            if tipo_final == 'COMENTARIO' and '\n' in value:
+            if '\n' in value and kind != 'NUEVA_LINEA':
                 linea += value.count('\n')
                 columna_inicio = match.start() + value.rfind('\n') + 1
 
-          
-      
+            i += 1
+    
         return tokens_para_tabla, tokens_para_colores
-   
     #Colores para cada uno de los tokens
     def aplicar_colores(self, editor, tokens):
         import tkinter as tk
