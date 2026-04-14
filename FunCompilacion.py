@@ -7,8 +7,6 @@ import tkinter as tk
 def ejecutar_fase(fase):
 
     archivo = funcionArchivos.ruta_actual
-
-    # verificar archivo guardado
     if not archivo:
         messagebox.showwarning(
             "Aviso",
@@ -34,8 +32,6 @@ def ejecutar_fase(fase):
 
 # ---- funciones llamadas por botones ----
 
-# def analisis_lexico():
-#     ejecutar_fase("lexico")
 def analisis_lexico(editor, tabla, consola):
     if not editor: return
     
@@ -54,9 +50,8 @@ def analisis_lexico(editor, tabla, consola):
     for t in tokens_validos:
         tabla.insert('', 'end', values=(t['tipo'], t['valor'], t['linea']))
     
-    # 4. MOSTRAR ERRORES EN LA CONSOLA (Usamos tokens_con_errores)
     for t in tokens_con_errores:
-        if t['tipo'] == 'ERROR': # <--- Ahora esto sí funcionará
+        if t['tipo'] == 'ERROR':
             consola.insert("end", f">>> Error léxico: '{t['valor']}' en línea {t['linea']}\n")
 def analisis_sintactico():
     ejecutar_fase("sintactico")

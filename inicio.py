@@ -41,17 +41,14 @@ estilo.map("TNotebook.Tab", background=[("selected", COLOR_EDITOR)], foreground=
 
 #Funcion de abrir archivos
 def abrir_archivo_flujo():
-    # Abre el cuadro de diálogo UNA sola vez
     ruta = filedialog.askopenfilename(
         filetypes=[("Archivos de texto", "*.txt"), ("Todos los archivos", "*.*")]
     )
-    # Si el usuario seleccionó algo (no canceló)
     if ruta:
         try:
             with open(ruta, "r", encoding="utf-8") as f:
                 contenido = f.read()
             nombre = os.path.basename(ruta)
-            # Llamamos a tu función de pestañas
             agregar_pestana(nombre, contenido, ruta)
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo abrir el archivo: {e}")
@@ -111,7 +108,6 @@ def guardar_como():
     editor = obtener_editor_actual()
     if not editor: return
     
-    # Abrir el explorador de archivos
     archivo = filedialog.asksaveasfilename(
         defaultextension=".txt", 
         filetypes=[("Archivos de texto", "*.txt"), ("Todos", "*.*")]
@@ -121,14 +117,10 @@ def guardar_como():
         try:
             with open(archivo, "w", encoding="utf-8") as f:
                 f.write(editor.get("1.0", tk.END))
-            
-            # Actualizar el nombre de la pestaña y quitar el asterisco
             id_p = notebook_editor.select()
             notebook_editor.tab(id_p, text=os.path.basename(archivo))
             estados_modificados[id_p] = False
             
-            # Opcional: Guardar la ruta en el frame para 'Guardar' normal
-            # notebook_editor.nametowidget(id_p).ruta_archivo = archivo
             
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar: {e}")
@@ -140,8 +132,7 @@ def guardar_como():
 def guardar_como():
     editor = obtener_editor_actual()
     if not editor: return
-    
-    # Abrir el explorador de archivos
+
     archivo = filedialog.asksaveasfilename(
         defaultextension=".txt", 
         filetypes=[("Archivos de texto", "*.txt"), ("Todos", "*.*")]
@@ -156,7 +147,6 @@ def guardar_como():
             id_p = notebook_editor.select()
             notebook_editor.tab(id_p, text=os.path.basename(archivo))
             
-            # Guardamos la ruta física en el frame para que 'guardar_simple' la reconozca
             frame_actual = notebook_editor.nametowidget(id_p)
             frame_actual.ruta_archivo = archivo
             
@@ -166,24 +156,20 @@ def guardar_como():
             messagebox.showerror("Error", f"No se pudo guardar: {e}")
 
 def guardar_simple():
-    # 1. Buscamos qué pestaña está activa usando su ID
+   
     pestana_id = notebook_editor.select()
     if not pestana_id: return
     
-    # 2. Obtenemos el frame físico asociado a ese ID
     frame_actual = notebook_editor.nametowidget(pestana_id)
     editor = frame_actual.editor_text
-    
-    # 3. Intentamos recuperar la ruta guardada previamente
+
     ruta = getattr(frame_actual, 'ruta_archivo', None)
 
     if ruta:
-        # SI YA TIENE RUTA: Guardamos directamente sin abrir ventanas
         try:
             with open(ruta, "w", encoding="utf-8") as f:
                 f.write(editor.get("1.0", tk.END))
             
-            # Quitamos el asterisco de modificado (*)
             nombre_actual = notebook_editor.tab(pestana_id, "text")
             if nombre_actual.endswith(" *"):
                 notebook_editor.tab(pestana_id, text=nombre_actual.replace(" *", ""))
@@ -193,31 +179,25 @@ def guardar_simple():
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar: {e}")
     else:
-        # SI NO TIENE RUTA: Es un archivo nuevo, pedimos nombre
         guardar_como()
 
 def cerrar_pestana_actual(index=None):
     try:
-        # Si no nos pasan un índice, intentamos obtener el de la pestaña seleccionada
         if index is None:
             index = notebook_editor.index("current")
         
-        # Obtenemos el ID único de la pestaña
         id_p = notebook_editor.tabs()[index]
-        
-        # Verificamos si tiene cambios sin guardar antes de cerrar
+
         if estados_modificados.get(id_p, False):
             res = messagebox.askyesnocancel("Guardar cambios", "¿Deseas guardar los cambios antes de cerrar?")
             if res is True:
-                guardar_simple() # Llama a tu lógica de guardado inteligente
-            elif res is None: # Si el usuario dio en "Cancelar", no hacemos nada
+                guardar_simple() 
+            elif res is None:
                 return
-        
-        # Cerramos físicamente la pestaña
+
         notebook_editor.forget(id_p)
         
     except tk.TclError:
-        # Esto evita errores si intentas cerrar cuando no hay pestañas abiertas
         pass
 def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     frame_pestana = tk.Frame(notebook_editor, bg=COLOR_EDITOR)
@@ -243,9 +223,9 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     editor_text.tag_configure("color2", foreground="#8FBCBB") # Identificadores (Cian claro)
     editor_text.tag_configure("color3", foreground="#34383F") # Comentarios (Gris/Oculto)
     editor_text.tag_configure("color4", foreground="#B48EAD") # Reservadas (Púrpura)
-    editor_text.tag_configure("color5", foreground="#A3BE8C") # Aritméticos (Verde)
-    editor_text.tag_configure("color6", foreground="#81A1C1") # Lógicos/Relacionales (Azul)
-    editor_text.tag_configure("red",    foreground="#BF616A") # Errores (Rojo)
+    editor_text.tag_configure("color5", foreground="#A3EA65") # Aritméticos (Verde)
+    editor_text.tag_configure("color6", foreground="#89B9EA") # Lógicos/Relacionales (Azul)
+    editor_text.tag_configure("red",    foreground="#E72438") # Errores (Rojo)
     # Referencias necesarias para funciones externas
     frame_pestana.editor_text = editor_text
     frame_pestana.line_numbers = line_numbers
@@ -254,22 +234,17 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     # --- LÓGICA DE SINCRONIZACIÓN CRÍTICA ---
 
     def sincronizar_vistas(*args):
-        """Mueve ambos widgets cuando se arrastra la barra de scroll"""
         line_numbers.yview(*args)
         editor_text.yview(*args)
 
     def al_hacer_scroll(*args):
-        """Se activa cuando el editor cambia su vista (por teclado o ratón)"""
         scrollbar.set(*args)
-        # Sincroniza la posición de los números con la del editor
         line_numbers.yview_moveto(args[0])
         actualizar_todo_local(editor_text, line_numbers)
 
     # Configuración de Scrollbar
     scrollbar = tk.Scrollbar(editor_container, command=sincronizar_vistas)
     scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-    
-    # Enlazamos el scroll del editor a nuestra función controladora
     editor_text.config(yscrollcommand=al_hacer_scroll)
 
     # Eventos de teclado y mouse
@@ -292,33 +267,24 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
         sc.aplicar_colores(editor, tokens_colores)
         actualizar_tabla_visual(tokens_tabla)
 
-    # Detecta clics para actualizar el resaltado de línea actual
     editor_text.bind("<Button-1>", lambda e: root.after(10, lambda: actualizar_todo_local(editor_text, line_numbers)))
     editor_text.bind("<ButtonRelease>", actualizar_estado_cursor)
     
-    # Evento para cambios masivos (Pegar texto o borrar bloques)
     editor_text.bind("<<Modified>>", lambda e: [
         actualizar_todo_local(editor_text, line_numbers),
         editor_text.edit_modified(False)
     ])
-
-    # Manejo unificado de la rueda del ratón
     def mouse_wheel(event):
-        # En Windows, event.delta suele ser 120 o -120
-        # Dividimos para obtener el número de unidades a desplazar
         move = int(-1 * (event.delta / 120))
         editor_text.yview_scroll(move, "units")
         line_numbers.yview_scroll(move, "units")
         actualizar_todo_local(editor_text, line_numbers)
-        return "break" # Evita el scroll default que podría desfasarlos
+        return "break" 
 
     editor_text.bind("<MouseWheel>", mouse_wheel)
-
-    # Finalizar creación de pestaña
     notebook_editor.add(frame_pestana, text=nombre)
     notebook_editor.select(frame_pestana)
     
-    # Estado inicial
     estados_modificados[notebook_editor.select()] = False
     actualizar_todo_local(editor_text, line_numbers)
 # ==========================================
@@ -334,7 +300,7 @@ archivo_menu = Menu(archivo_btn, tearoff=0, bg=COLOR_FONDO, fg=COLOR_TEXTO)
 archivo_menu.add_command(label=" Nuevo", image=img_nuevo, compound=tk.LEFT, command=lambda: agregar_pestana())
 archivo_menu.add_command(label=" Abrir", image=img_abrir, compound=tk.LEFT, command=abrir_archivo_flujo)
 archivo_menu.add_command(label=" Guardar", image=img_guardar, compound=tk.LEFT, 
-                         command=guardar_simple) # Cambiado para usar la lógica local
+                         command=guardar_simple)
 archivo_menu.add_command(label=" Guardar como...", image=img_guardarComo, compound=tk.LEFT, 
                          command=guardar_como)
 archivo_menu.add_separator()
@@ -366,11 +332,9 @@ crear_btn_sup("Léxico", img_lexico, lambda: FunCompilacion.analisis_lexico(
 crear_btn_sup("Sintáctico", img_sintatico, FunCompilacion.analisis_sintactico)
 crear_btn_sup("Semántico", img_semantico, FunCompilacion.analisis_semantico)
 crear_btn_sup("Intermedio", None, FunCompilacion.codigo_intermedio)
-
-# Botón Ejecutar (Destacado)
 tk.Button(barra_superior, text=" Ejecutar", image=img_play, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, font=('Segoe UI', 10), command=FunCompilacion.ejecutar_programa, padx=15).pack(side=tk.LEFT)
 
-# BARRA DE ACCESO RÁPIDO (La de abajo del menú)
+# BARRA DE ACCESO RÁPIDO 
 barra_herramientas = tk.Frame(root, bg=COLOR_EDITOR, height=35)
 barra_herramientas.pack(side=tk.TOP, fill=tk.X)
 barra_herramientas.pack_propagate(False)
@@ -379,9 +343,7 @@ def crear_btn_herr(img, cmd):
     tk.Button(barra_herramientas, image=img, bg=COLOR_EDITOR, activebackground=COLOR_BARRA, relief=tk.FLAT, command=cmd).pack(side=tk.LEFT, padx=2, pady=2)
 
 crear_btn_herr(img_nuevo, lambda: agregar_pestana())
-# Antes tenías un lambda aquí, ahora solo pasas la función
 crear_btn_herr(img_abrir, abrir_archivo_flujo)
-# CORREGIDO: Usamos obtener_editor_actual() en lugar de la variable editor_text
 crear_btn_herr(img_guardar, lambda: guardar_simple())
 crear_btn_herr(img_guardarComo, lambda: guardar_como())
 crear_btn_herr(img_salir, cerrar_pestana_actual)
@@ -390,8 +352,8 @@ crear_btn_herr(img_lexico, FunCompilacion.analisis_lexico)
 crear_btn_herr(img_sintatico, FunCompilacion.analisis_sintactico)
 crear_btn_herr(img_semantico, FunCompilacion.analisis_semantico)
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
-tk.Button(barra_herramientas, image=img_play, bg=COLOR_EDITOR,activebackground=COLOR_BARRA, # Color que brilla cuando pasas el mouse
-          bd=0, # Quita el borde negro 
+tk.Button(barra_herramientas, image=img_play, bg=COLOR_EDITOR,activebackground=COLOR_BARRA, 
+          bd=0, 
           relief=tk.FLAT, command=FunCompilacion.ejecutar_programa).pack(side=tk.LEFT, padx=5)
 
 # ==========================================
@@ -406,7 +368,7 @@ panel_vertical.add(panel_horizontal, height=500)
 notebook_editor = ttk.Notebook(panel_horizontal)
 panel_horizontal.add(notebook_editor, width=750)
 
-# Panel Derecho: Resultados + Árbol
+# Panel Derecho
 resultados_frame = tk.Frame(panel_horizontal, bg=COLOR_FONDO)
 panel_horizontal.add(resultados_frame, width=350)
 tabs_resultados = ttk.Notebook(resultados_frame)
@@ -414,7 +376,7 @@ tabs_resultados.pack(fill=tk.BOTH, expand=True)
 for n in [ "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos"]:
     tabs_resultados.add(tk.Frame(tabs_resultados, bg=COLOR_EDITOR), text=n)
 
-# Pestaña Léxico con una Tabla (Treeview)
+# Pestaña Léxico - Tabla
 frame_lexico = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
 tabs_resultados.add(frame_lexico, text="Léxico")
 
@@ -427,7 +389,7 @@ tabla_tokens.column("Valor", width=150)
 tabla_tokens.column("Línea", width=50)
 tabla_tokens.pack(fill=tk.BOTH, expand=True)
 
-# Panel Inferior: Consola + Errores Semánticos
+# Panel Inferior
 frame_inferior = tk.Frame(panel_vertical, bg=COLOR_FONDO)
 panel_vertical.add(frame_inferior, height=200)
 tabs_consola = ttk.Notebook(frame_inferior)
@@ -442,33 +404,19 @@ consola_errores_lexicos.pack(fill=tk.BOTH, expand=True)
 # ==========================================
 # 6. FUNCIONES DE APOYO
 # ==========================================
-# def actualizar_todo_local(txt, line_w):
-#     line_w.config(state="normal")
-#     line_w.delete("1.0", tk.END)
-#     total = int(txt.index("end-1c").split(".")[0])
-#     line_w.insert("1.0", "\n".join(str(i) for i in range(1, total + 1)))
-#     line_w.yview_moveto(txt.yview()[0])
-#     line_w.config(state="disabled")
-#     # Resaltar linea actual
-#     txt.tag_remove("active_line", "1.0", tk.END)
-#     txt.tag_add("active_line", f"{txt.index('insert').split('.')[0]}.0", f"{txt.index('insert').split('.')[0]}.end+1c")
+
 def actualizar_todo_local(txt, line_w):
     line_w.config(state="normal")
     line_w.delete("1.0", tk.END)
     
-    # Obtenemos el número de líneas total
     metrica_lineas = txt.index('end-1c').split('.')[0]
     lineas = "\n".join(str(i) for i in range(1, int(metrica_lineas) + 1))
     
     line_w.insert("1.0", lineas)
-    
-    # ESTO ES LO MÁS IMPORTANTE:
-    # Ajusta el scroll de los números para que coincida EXACTAMENTE con el del editor
     line_w.yview_moveto(txt.yview()[0])
     
     line_w.config(state="disabled")
     
-    # Resaltar línea actual
     txt.tag_remove("active_line", "1.0", tk.END)
     txt.tag_add("active_line", f"{txt.index('insert').split('.')[0]}.0", f"{txt.index('insert').split('.')[0]}.end+1c")
 def resetear_modificado():
