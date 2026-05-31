@@ -329,7 +329,11 @@ crear_btn_sup("Léxico", img_lexico, lambda: FunCompilacion.analisis_lexico(
     tabla_tokens, 
     consola_errores_lexicos
 ))
-crear_btn_sup("Sintáctico", img_sintatico, FunCompilacion.analisis_sintactico)
+crear_btn_sup("Sintáctico", img_sintatico, lambda: FunCompilacion.analisis_sintactico(
+    obtener_editor_actual(), 
+    tree_ast, 
+    consola_errores_sintacticos
+))
 crear_btn_sup("Semántico", img_semantico, FunCompilacion.analisis_semantico)
 crear_btn_sup("Intermedio", None, FunCompilacion.codigo_intermedio)
 tk.Button(barra_superior, text=" Ejecutar", image=img_play, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, font=('Segoe UI', 10), command=FunCompilacion.ejecutar_programa, padx=15).pack(side=tk.LEFT)
@@ -373,12 +377,24 @@ resultados_frame = tk.Frame(panel_horizontal, bg=COLOR_FONDO)
 panel_horizontal.add(resultados_frame, width=350)
 tabs_resultados = ttk.Notebook(resultados_frame)
 tabs_resultados.pack(fill=tk.BOTH, expand=True)
-for n in [ "Sintáctico", "Semántico", "Intermedio", "Tabla Símbolos"]:
-    tabs_resultados.add(tk.Frame(tabs_resultados, bg=COLOR_EDITOR), text=n)
 
 # Pestaña Léxico - Tabla
 frame_lexico = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
 tabs_resultados.add(frame_lexico, text="Léxico")
+#Sintactico 
+frame_sintactico = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
+tabs_resultados.add(frame_sintactico, text="Sintáctico")
+tree_ast = ttk.Treeview(frame_sintactico, show="tree")
+tree_ast.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+scroll_ast = ttk.Scrollbar(frame_sintactico, orient="vertical", command=tree_ast.yview)
+scroll_ast.pack(side=tk.RIGHT, fill=tk.Y)
+tree_ast.configure(yscrollcommand=scroll_ast.set)
+
+#Pestañas sin funciones todavia
+for n in [  "Semántico", "Intermedio", "Tabla Símbolos"]:
+    tabs_resultados.add(tk.Frame(tabs_resultados, bg=COLOR_EDITOR), text=n)
+
 
 tabla_tokens = ttk.Treeview(frame_lexico, columns=("Tipo", "Valor", "Línea"), show='headings')
 tabla_tokens.heading("Tipo", text="Tipo")
@@ -394,13 +410,17 @@ frame_inferior = tk.Frame(panel_vertical, bg=COLOR_FONDO)
 panel_vertical.add(frame_inferior, height=200)
 tabs_consola = ttk.Notebook(frame_inferior)
 tabs_consola.pack(fill=tk.BOTH, expand=True)
-for n in [ "Errores Sintácticos", "Errores Semánticos", "Resultados"]:
+for n in [  "Errores Semánticos", "Resultados"]:
     tabs_consola.add(tk.Frame(tabs_consola, bg=COLOR_EDITOR), text=n, image=img_errores if "Errores" in n else img_resultado, compound=tk.LEFT)
 
 frame_err_lex = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
 tabs_consola.add(frame_err_lex, text="Errores Léxicos", image=img_errores, compound=tk.LEFT)
 consola_errores_lexicos = tk.Text(frame_err_lex, bg="#2E3440", fg="#FF5555", font=('Consolas', 10))
 consola_errores_lexicos.pack(fill=tk.BOTH, expand=True)
+
+#Parte de la consola para sintactico
+consola_errores_sintacticos = tk.Text(tabs_consola.nametowidget(tabs_consola.tabs()[0]), bg="#2E3440", fg="#FF5555", font=('Consolas', 10))
+consola_errores_sintacticos.pack(fill=tk.BOTH, expand=True)
 # ==========================================
 # 6. FUNCIONES DE APOYO
 # ==========================================

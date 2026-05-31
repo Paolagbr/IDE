@@ -16,7 +16,10 @@ class Scanner:
             'ERROR': 'red'
         }
 
-        self.RESERVADAS = {'if', 'else', 'end', 'do', 'while', 'switch', 'case', 'int', 'float', 'main', 'cin', 'cout'}
+        self.RESERVADAS = {'if', 'else', 'end', 
+                           'do', 'while', 'switch', 
+                           'case', 'int', 'float', 
+                           'main', 'cin', 'cout'}
     def analizar(self, codigo_fuente):
         import re
         tokens_para_tabla = []   
