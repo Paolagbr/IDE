@@ -28,7 +28,9 @@ class AnalizadorSintactico:
         esperado_str = valor_esperado if valor_esperado else tipo_esperado
         encontrado_str = self.token_actual['valor'] if self.token_actual else "EOF"
         self.reportar_error(f"Se esperaba '{esperado_str}' pero se encontró '{encontrado_str}'")
-        return None
+        
+        # Retornamos un nodo falso en lugar de None para no romper la estructura del árbol
+        return NodoAST("ERROR_SINTACTICO", esperado_str)
 
     def reportar_error(self, mensaje):
         if self.token_actual:
@@ -41,9 +43,11 @@ class AnalizadorSintactico:
             info_err = {'linea': 'EOF', 'col': 'EOF', 'msg': f"Error Sintactico al final del archivo: {mensaje}"}
         self.errores.append(info_err)
         
-        # Sincronización segura: avanza hasta encontrar un punto y coma o una llave de cierre
-        while self.token_actual and self.token_actual['valor'] not in [';', '}']:
+        # Sincronización suavizada: Solo saltamos hasta el final de la instrucción actual (;)
+        # Evitamos saltar palabras clave como 'end' o '}' para no destruir bloques enteros del árbol.
+        while self.token_actual and self.token_actual['valor'] not in [';', '}', 'end']:
             self.avanzar()
+            
         if self.token_actual and self.token_actual['valor'] == ';':
             self.avanzar()
 
@@ -75,7 +79,7 @@ class AnalizadorSintactico:
         except Exception as e:
             print(f"Error durante el parseo: {e}")
             
-        return nodo  # <--- Siempre retornamos el nodo para que no desaparezca de la pantalla
+        return nodo  
 
     def declaracion(self):
         if self.token_actual and self.token_actual['valor'] in ['int', 'float', 'bool']:
@@ -86,16 +90,16 @@ class AnalizadorSintactico:
     def declaracion_variable(self):
         nodo_tipo = self.token_actual['valor'] if self.token_actual else "tipo"
         nodo = NodoAST(f"Decl_Variable ({nodo_tipo})")
-        self.consumir("RESERVADA")
+        self.avanzar() # Avanzamos de forma segura pasando el 'int' o 'float'
 
         nodo_id = self.consumir("IDENTIFICADOR")
-        if nodo_id: 
+        if nodo_id and nodo_id.tipo != "ERROR_SINTACTICO": 
             nodo.agregar_hijo(NodoAST(f"id: {nodo_id.valor}"))
 
         while self.token_actual and self.token_actual['valor'] == ',':
             self.consumir("SIMBOLO", ",")
             nodo_sig = self.consumir("IDENTIFICADOR")
-            if nodo_sig: 
+            if nodo_sig and nodo_sig.tipo != "ERROR_SINTACTICO": 
                 nodo.agregar_hijo(NodoAST(f"id: {nodo_sig.valor}"))
 
         self.consumir("SIMBOLO", ";")
@@ -103,7 +107,8 @@ class AnalizadorSintactico:
 
     def lista_sentencias(self):
         nodo = NodoAST("Cuerpo_Instrucciones")
-        while self.token_actual and self.token_actual['valor'] not in ['end', 'while', 'else', '}', 'until']:
+        # Quitamos 'while' de aquí para que los ciclos while normales puedan tener sub-sentencias sin romperse
+        while self.token_actual and self.token_actual['valor'] not in ['end', 'else', '}', 'until']:
             pos_anterior = self.pos
             nodo_sent = self.sentencia()
             if nodo_sent:
@@ -176,10 +181,20 @@ class AnalizadorSintactico:
         if self.token_actual and self.token_actual['valor'] == ';':
             self.consumir("SIMBOLO", ";")
             return None
+            
+        # Si nos topamos con una palabra estructural que abre bloques, salimos sin pedir ';'
+        if self.token_actual and self.token_actual['valor'] in ['while', 'do', 'if', 'end', '}', 'then']:
+            return None
+            
         nodo_exp = self.expresion()
-        self.consumir("SIMBOLO", ";")
+        
+        # ¡EL CAMBIO AQUÍ!: Si después de la expresión sigue un 'do' o 'then', NO consumas ';'
+        if self.token_actual and self.token_actual['valor'] in ['do', 'then']:
+            return nodo_exp
+            
+        if nodo_exp:
+            self.consumir("SIMBOLO", ";")
         return nodo_exp
-
     def seleccion(self):
         nodo = NodoAST("Sentencia_Control_IF")
         self.consumir("RESERVADA", "if")
@@ -231,9 +246,8 @@ class AnalizadorSintactico:
             nodo_c.agregar_hijo(nodo_cond)
             nodo.agregar_hijo(nodo_c)
         
-        # Sincronización clave: Consumir el 'do' de forma explícia
         if self.token_actual and self.token_actual['valor'] == 'do':
-            self.consumir("RESERVADA", "do")  # Usamos consumir en vez de avanzar para asegurar el token
+            self.consumir("RESERVADA", "do") 
         
         nodo_Cuerpo = self.lista_sentencias()
         if nodo_Cuerpo:
@@ -248,13 +262,13 @@ class AnalizadorSintactico:
         nodo = NodoAST("Sentencia_Bucle_DO_WHILE")
         self.consumir("RESERVADA", "do")
         
+        # Procesamos el cuerpo. Si se topa con el 'while' de abajo, se detendrá si manejamos bien los tokens.
         nodo_cuerpo = self.lista_sentencias()
         if nodo_cuerpo:
             nodo_b = NodoAST("Bloque_Repetir")
             nodo_b.agregar_hijo(nodo_cuerpo)
             nodo.agregar_hijo(nodo_b)
             
-        # CAMBIO AQUÍ: Cambiamos "until" por "while"
         self.consumir("RESERVADA", "while")
         
         if self.token_actual and self.token_actual['valor'] == '(':
@@ -272,6 +286,7 @@ class AnalizadorSintactico:
         self.consumir("SIMBOLO", ";")
         return nodo
 
+
     def sent_in(self):
         nodo = NodoAST("Stream_Entrada (cin)")
         self.consumir("RESERVADA", "cin")
@@ -284,7 +299,7 @@ class AnalizadorSintactico:
                 self.avanzar()
                 
         nodo_id = self.consumir("IDENTIFICADOR")
-        if nodo_id: 
+        if nodo_id and nodo_id.tipo != "ERROR_SINTACTICO": 
             nodo.agregar_hijo(NodoAST(f"Destino_id: {nodo_id.valor}"))
         self.consumir("SIMBOLO", ";")
         return nodo
@@ -334,11 +349,10 @@ class AnalizadorSintactico:
         return nodo
 
     # --- EXPRESIONES ---
-
     def expresion(self):
         nodo_izq = self.expresion_simple()
-        # Si el token actual es 'do', salimos inmediatamente para no romper el flujo del while
-        while self.token_actual and self.token_actual['valor'] != 'do' and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=', '&&', '||']):
+        # Agregamos 'do' y '(' como frenos de emergencia para que las condiciones no se traguen el inicio de los bucles
+        while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=', '&&', '||']):
             nodo_op = NodoAST(f"Op_Relacional: {self.token_actual['valor']}")
             self.avanzar()
             nodo_der = self.expresion_simple()
@@ -349,7 +363,7 @@ class AnalizadorSintactico:
 
     def expresion_simple(self):
         nodo_izq = self.termino()
-        while self.token_actual and self.token_actual['valor'] != 'do' and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['+', '-']:
+        while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['+', '-']:
             nodo_op = NodoAST(f"Op_Aritmetico: {self.token_actual['valor']}")
             self.avanzar()
             nodo_der = self.termino()
@@ -360,7 +374,7 @@ class AnalizadorSintactico:
 
     def termino(self):
         nodo_izq = self.factor()
-        while self.token_actual and self.token_actual['valor'] != 'do' and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['*', '/', '%']:
+        while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['*', '/', '%']:
             nodo_op = NodoAST(f"Op_Multiplicativo: {self.token_actual['valor']}")
             self.avanzar()
             nodo_der = self.factor()
@@ -368,6 +382,7 @@ class AnalizadorSintactico:
             if nodo_der: nodo_op.agregar_hijo(nodo_der)
             nodo_izq = nodo_op
         return nodo_izq
+    
 
     def factor(self):
         nodo_izq = self.componente()
