@@ -231,8 +231,9 @@ class AnalizadorSintactico:
             nodo_c.agregar_hijo(nodo_cond)
             nodo.agregar_hijo(nodo_c)
         
+        # Sincronización clave: Consumir el 'do' de forma explícia
         if self.token_actual and self.token_actual['valor'] == 'do':
-            self.avanzar()
+            self.consumir("RESERVADA", "do")  # Usamos consumir en vez de avanzar para asegurar el token
         
         nodo_Cuerpo = self.lista_sentencias()
         if nodo_Cuerpo:
@@ -336,7 +337,8 @@ class AnalizadorSintactico:
 
     def expresion(self):
         nodo_izq = self.expresion_simple()
-        while self.token_actual and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=', '&&', '||']):
+        # Si el token actual es 'do', salimos inmediatamente para no romper el flujo del while
+        while self.token_actual and self.token_actual['valor'] != 'do' and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=', '&&', '||']):
             nodo_op = NodoAST(f"Op_Relacional: {self.token_actual['valor']}")
             self.avanzar()
             nodo_der = self.expresion_simple()
@@ -347,7 +349,7 @@ class AnalizadorSintactico:
 
     def expresion_simple(self):
         nodo_izq = self.termino()
-        while self.token_actual and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['+', '-']:
+        while self.token_actual and self.token_actual['valor'] != 'do' and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['+', '-']:
             nodo_op = NodoAST(f"Op_Aritmetico: {self.token_actual['valor']}")
             self.avanzar()
             nodo_der = self.termino()
@@ -358,7 +360,7 @@ class AnalizadorSintactico:
 
     def termino(self):
         nodo_izq = self.factor()
-        while self.token_actual and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['*', '/', '%']:
+        while self.token_actual and self.token_actual['valor'] != 'do' and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['*', '/', '%']:
             nodo_op = NodoAST(f"Op_Multiplicativo: {self.token_actual['valor']}")
             self.avanzar()
             nodo_der = self.factor()
