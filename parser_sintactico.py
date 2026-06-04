@@ -16,20 +16,15 @@ class AnalizadorSintactico:
 
     def consumir(self, tipo_esperado, valor_esperado=None):
         if self.token_actual:
-            # Validación flexible: Si buscamos un valor exacto (como 'then'), 
-            # no importa si el lexer lo llamó IDENTIFICADOR o RESERVADA, lo que nos importa es el texto.
             if valor_esperado and self.token_actual['valor'] == valor_esperado:
                 nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'])
                 self.avanzar()
                 return nodo
-            
-            # Validación por tipo estándar
             if not valor_esperado and self.token_actual['tipo'] == tipo_esperado:
                 nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'])
                 self.avanzar()
                 return nodo
 
-        # Si no coincide, reportamos error de forma amigable
         esperado_str = valor_esperado if valor_esperado else tipo_esperado
         encontrado_str = self.token_actual['valor'] if self.token_actual else "EOF"
         self.reportar_error(f"Se esperaba '{esperado_str}' pero se encontró '{encontrado_str}'")
@@ -40,44 +35,47 @@ class AnalizadorSintactico:
             info_err = {
                 'linea': self.token_actual['linea'],
                 'col': self.token_actual['col'],
-                'msg': f"Error Sintáctico en Línea {self.token_actual['linea']}, Col {self.token_actual['col']}: {mensaje}"
+                'msg': f"Error Sintactico en Linea {self.token_actual['linea']}, Col {self.token_actual['col']}: {mensaje}"
             }
         else:
-            info_err = {'linea': 'EOF', 'col': 'EOF', 'msg': f"Error Sintáctico al final del archivo: {mensaje}"}
+            info_err = {'linea': 'EOF', 'col': 'EOF', 'msg': f"Error Sintactico al final del archivo: {mensaje}"}
         self.errores.append(info_err)
-        self.sincronizar()
-
-    def sincronizar(self):
-        # Avanzar hasta encontrar un punto y coma o fin de bloque para no ciclarse
-        while self.token_actual:
-            if self.token_actual['valor'] in [';', '}']:
-                self.avanzar()
-                break
+        
+        # Sincronización segura: avanza hasta encontrar un punto y coma o una llave de cierre
+        while self.token_actual and self.token_actual['valor'] not in [';', '}']:
+            self.avanzar()
+        if self.token_actual and self.token_actual['valor'] == ';':
             self.avanzar()
 
-    # --- REGLAS GRAMATICALES ADAPTADAS ---
+    # --- REGLAS GRAMATICALES ---
 
     def parsear(self):
         return self.programa()
 
     def programa(self):
-        nodo = NodoAST("PROGRAMA")
-        nodo_main = self.consumir("RESERVADA", "main")
-        nodo_llave_i = self.consumir("SIMBOLO", "{")
-        
-        if nodo_main: nodo.agregar_hijo(nodo_main)
-        if nodo_llave_i: nodo.agregar_hijo(nodo_llave_i)
+        nodo = NodoAST("Raiz_Programa")
+        try:
+            self.consumir("RESERVADA", "main")
+            
+            if self.token_actual and self.token_actual['valor'] == '(':
+                self.consumir("SIMBOLO", "(")
+                self.consumir("SIMBOLO", ")")
+                
+            self.consumir("SIMBOLO", "{")
 
-        while self.token_actual and self.token_actual['valor'] != '}':
-            nodo_decl = self.declaracion()
-            if nodo_decl:
-                nodo.agregar_hijo(nodo_decl)
-            else:
-                break
+            while self.token_actual and self.token_actual['valor'] != '}':
+                nodo_decl = self.declaracion()
+                if nodo_decl:
+                    nodo.agregar_hijo(nodo_decl)
+                else:
+                    if self.token_actual and self.token_actual['valor'] != '}':
+                        self.avanzar()
 
-        nodo_llave_d = self.consumir("SIMBOLO", "}")
-        if nodo_llave_d: nodo.agregar_hijo(nodo_llave_d)
-        return nodo
+            self.consumir("SIMBOLO", "}")
+        except Exception as e:
+            print(f"Error durante el parseo: {e}")
+            
+        return nodo  # <--- Siempre retornamos el nodo para que no desaparezca de la pantalla
 
     def declaracion(self):
         if self.token_actual and self.token_actual['valor'] in ['int', 'float', 'bool']:
@@ -86,174 +84,323 @@ class AnalizadorSintactico:
             return self.lista_sentencias()
 
     def declaracion_variable(self):
-        nodo = NodoAST("DECLARACION_VARIABLE")
-        nodo_tipo = self.consumir("RESERVADA") # int, float, bool
-        nodo.agregar_hijo(nodo_tipo)
+        nodo_tipo = self.token_actual['valor'] if self.token_actual else "tipo"
+        nodo = NodoAST(f"Decl_Variable ({nodo_tipo})")
+        self.consumir("RESERVADA")
 
         nodo_id = self.consumir("IDENTIFICADOR")
-        nodo.agregar_hijo(nodo_id)
+        if nodo_id: 
+            nodo.agregar_hijo(NodoAST(f"id: {nodo_id.valor}"))
 
         while self.token_actual and self.token_actual['valor'] == ',':
             self.consumir("SIMBOLO", ",")
-            nodo.agregar_hijo(self.consumir("IDENTIFICADOR"))
+            nodo_sig = self.consumir("IDENTIFICADOR")
+            if nodo_sig: 
+                nodo.agregar_hijo(NodoAST(f"id: {nodo_sig.valor}"))
 
         self.consumir("SIMBOLO", ";")
         return nodo
 
     def lista_sentencias(self):
-        nodo = NodoAST("LISTA_SENTENCIAS")
-        # Frenar si encuentra elementos de clausura de la gramática
-        while self.token_actual and self.token_actual['valor'] not in ['end', 'while', 'else', '}']:
+        nodo = NodoAST("Cuerpo_Instrucciones")
+        while self.token_actual and self.token_actual['valor'] not in ['end', 'while', 'else', '}', 'until']:
+            pos_anterior = self.pos
             nodo_sent = self.sentencia()
             if nodo_sent:
                 nodo.agregar_hijo(nodo_sent)
-            else:
-                break
-        return nodo
+            if self.pos == pos_anterior:
+                self.avanzar()
+        
+        if len(nodo.hijos) == 1:
+            return nodo.hijos[0]
+        return nodo if len(nodo.hijos) > 0 else None
 
     def sentencia(self):
-        if not self.token_actual: return None
-        val = self.token_actual['valor']
+        if not self.token_actual: 
+            return None
+        
+        val = self.token_actual.get('valor', '')
+        tipo = self.token_actual.get('tipo', '')
         
         if val == 'if': return self.seleccion()
         elif val == 'while': return self.iteracion()
         elif val == 'do': return self.repeticion()
         elif val == 'cin': return self.sent_in()
         elif val == 'cout': return self.sent_out()
-        elif self.token_actual['tipo'] == 'IDENTIFICADOR': return self.asignacion()
+        elif tipo == 'IDENTIFICADOR': 
+            siguiente_token_val = ""
+            siguiente_siguiente_val = ""
+            if self.pos + 1 < len(self.tokens):
+                siguiente_token_val = self.tokens[self.pos + 1].get('valor', '')
+            if self.pos + 2 < len(self.tokens):
+                siguiente_siguiente_val = self.tokens[self.pos + 2].get('valor', '')
+                
+            if siguiente_token_val in ['++', '--'] or (siguiente_token_val in ['+', '-'] and siguiente_siguiente_val == siguiente_token_val):
+                return self.sent_incremento_decremento()
+                
+            return self.asignacion()
         else:
             return self.sent_expresion()
+        
+    def sent_incremento_decremento(self):
+        nodo_id = self.consumir("IDENTIFICADOR")
+        nodo = NodoAST(f"Nodo_Modificar (id: {nodo_id.valor if nodo_id else ''})")
+        
+        op = ""
+        if self.token_actual and self.token_actual['valor'] in ['+', '-']:
+            op += self.token_actual['valor']
+            self.avanzar()
+            if self.token_actual and self.token_actual['valor'] in ['+', '-']:
+                op += self.token_actual['valor']
+                self.avanzar()
+        elif self.token_actual and self.token_actual['valor'] in ['++', '--']:
+            op = self.token_actual['valor']
+            self.avanzar()
+            
+        nodo.agregar_hijo(NodoAST(f"op: {op}"))
+        self.consumir("SIMBOLO", ";")
+        return nodo
 
     def asignacion(self):
-        nodo = NodoAST("ASIGNACION")
-        nodo.agregar_hijo(self.consumir("IDENTIFICADOR"))
-        nodo.agregar_hijo(self.consumir("ASIGNACION", "="))
-        nodo.agregar_hijo(self.expresion())
+        nodo_id = self.consumir("IDENTIFICADOR")
+        nodo = NodoAST(f"Nodo_Asignar (id: {nodo_id.valor if nodo_id else ''})")
+        self.consumir("ASIGNACION", "=")
+        
+        nodo_exp = self.expresion()
+        if nodo_exp: 
+            nodo.agregar_hijo(nodo_exp)
         self.consumir("SIMBOLO", ";")
         return nodo
 
     def sent_expresion(self):
-        nodo = NodoAST("SENT_EXPRESION")
-        if self.token_actual and self.token_actual['valor'] != ';':
-            nodo.agregar_hijo(self.expresion())
+        if self.token_actual and self.token_actual['valor'] == ';':
+            self.consumir("SIMBOLO", ";")
+            return None
+        nodo_exp = self.expresion()
         self.consumir("SIMBOLO", ";")
-        return nodo
+        return nodo_exp
 
     def seleccion(self):
-        nodo = NodoAST("SELECCION_IF")
-        nodo.agregar_hijo(self.consumir("RESERVADA", "if"))
-        nodo.agregar_hijo(self.expresion())
+        nodo = NodoAST("Sentencia_Control_IF")
+        self.consumir("RESERVADA", "if")
         
-        # 'then' se consume por valor directo sin importar qué tipo le dio tu lexer
-        nodo.agregar_hijo(self.consumir(self.token_actual['tipo'] if self.token_actual else "", "then"))
-        nodo.agregar_hijo(self.lista_sentencias())
-        
-        if self.token_actual and self.token_actual['valor'] == 'else':
-            nodo.agregar_hijo(self.consumir("RESERVADA", "else"))
-            nodo.agregar_hijo(self.lista_sentencias())
+        if self.token_actual and self.token_actual['valor'] == '(':
+            self.consumir("SIMBOLO", "(")
+            nodo_cond = self.expresion()
+            self.consumir("SIMBOLO", ")")
+        else:
+            nodo_cond = self.expresion()
             
-        nodo.agregar_hijo(self.consumir("RESERVADA", "end"))
+        if nodo_cond:
+            nodo_bloque_cond = NodoAST("Eval_Condicion")
+            nodo_bloque_cond.agregar_hijo(nodo_cond)
+            nodo.agregar_hijo(nodo_bloque_cond)
+            
+        self.consumir(self.token_actual['tipo'] if self.token_actual else "", "then")
+        
+        nodo_then = self.lista_sentencias()
+        if nodo_then:
+            nodo_bloque_then = NodoAST("Rama_True_Then")
+            nodo_bloque_then.agregar_hijo(nodo_then)
+            nodo.agregar_hijo(nodo_bloque_then)
+            
+        if self.token_actual and self.token_actual['valor'] == 'else':
+            self.consumir("RESERVADA", "else")
+            nodo_else = self.lista_sentencias()
+            if nodo_else:
+                nodo_bloque_else = NodoAST("Rama_False_Else")
+                nodo_bloque_else.agregar_hijo(nodo_else)
+                nodo.agregar_hijo(nodo_bloque_else)
+                
+        self.consumir("RESERVADA", "end")
         return nodo
 
     def iteracion(self):
-        nodo = NodoAST("ITERACION_WHILE")
-        nodo.agregar_hijo(self.consumir("RESERVADA", "while"))
-        nodo.agregar_hijo(self.expresion())
-        nodo.agregar_hijo(self.lista_sentencias())
-        nodo.agregar_hijo(self.consumir("RESERVADA", "end"))
+        nodo = NodoAST("Sentencia_Bucle_WHILE")
+        self.consumir("RESERVADA", "while")
+        
+        if self.token_actual and self.token_actual['valor'] == '(':
+            self.consumir("SIMBOLO", "(")
+            nodo_cond = self.expresion()
+            self.consumir("SIMBOLO", ")")
+        else:
+            nodo_cond = self.expresion()
+            
+        if nodo_cond:
+            nodo_c = NodoAST("Condicion_Ciclo")
+            nodo_c.agregar_hijo(nodo_cond)
+            nodo.agregar_hijo(nodo_c)
+        
+        if self.token_actual and self.token_actual['valor'] == 'do':
+            self.avanzar()
+        
+        nodo_Cuerpo = self.lista_sentencias()
+        if nodo_Cuerpo:
+            nodo_cp = NodoAST("Cuerpo_Ciclo")
+            nodo_cp.agregar_hijo(nodo_Cuerpo)
+            nodo.agregar_hijo(nodo_cp)
+        
+        self.consumir("RESERVADA", "end")
         return nodo
 
     def repeticion(self):
-        nodo = NodoAST("REPETICION_DO")
-        nodo.agregar_hijo(self.consumir("RESERVADA", "do"))
-        nodo.agregar_hijo(self.lista_sentencias())
-        nodo.agregar_hijo(self.consumir("RESERVADA", "while"))
-        nodo.agregar_hijo(self.expresion())
+        nodo = NodoAST("Sentencia_Bucle_DO_WHILE")
+        self.consumir("RESERVADA", "do")
+        
+        nodo_cuerpo = self.lista_sentencias()
+        if nodo_cuerpo:
+            nodo_b = NodoAST("Bloque_Repetir")
+            nodo_b.agregar_hijo(nodo_cuerpo)
+            nodo.agregar_hijo(nodo_b)
+            
+        # CAMBIO AQUÍ: Cambiamos "until" por "while"
+        self.consumir("RESERVADA", "while")
+        
+        if self.token_actual and self.token_actual['valor'] == '(':
+            self.consumir("SIMBOLO", "(")
+            nodo_cond = self.expresion()
+            self.consumir("SIMBOLO", ")")
+        else:
+            nodo_cond = self.expresion()
+            
+        if nodo_cond:
+            nodo_t = NodoAST("Condicion_Termino")
+            nodo_t.agregar_hijo(nodo_cond)
+            nodo.agregar_hijo(nodo_t)
+        
         self.consumir("SIMBOLO", ";")
         return nodo
 
     def sent_in(self):
-        nodo = NodoAST("CIN")
-        nodo.agregar_hijo(self.consumir("RESERVADA", "cin"))
-        nodo.agregar_hijo(self.consumir("OP_LOG_REL", ">>"))
-        nodo.agregar_hijo(self.consumir("IDENTIFICADOR"))
+        nodo = NodoAST("Stream_Entrada (cin)")
+        self.consumir("RESERVADA", "cin")
+        
+        if self.token_actual and self.token_actual['valor'] == '>>':
+            self.avanzar()
+        elif self.token_actual and self.token_actual['valor'] == '>':
+            self.avanzar()
+            if self.token_actual and self.token_actual['valor'] == '>': 
+                self.avanzar()
+                
+        nodo_id = self.consumir("IDENTIFICADOR")
+        if nodo_id: 
+            nodo.agregar_hijo(NodoAST(f"Destino_id: {nodo_id.valor}"))
         self.consumir("SIMBOLO", ";")
         return nodo
 
     def sent_out(self):
-        nodo = NodoAST("COUT")
-        nodo.agregar_hijo(self.consumir("RESERVADA", "cout"))
-        nodo.agregar_hijo(self.consumir("OP_LOG_REL", "<<"))
+        nodo = NodoAST("Stream_Salida (cout)")
+        self.consumir("RESERVADA", "cout")
+        
+        if self.token_actual and self.token_actual['valor'] == '<<':
+            self.avanzar()
+        elif self.token_actual and self.token_actual['valor'] == '<':
+            self.avanzar()
+            if self.token_actual and self.token_actual['valor'] == '<': 
+                self.avanzar()
+                
         nodo.agregar_hijo(self.salida())
         return nodo
 
     def salida(self):
-        nodo = NodoAST("SALIDA")
-        # Validar si viene una cadena o una expresión común
-        if self.token_actual and (self.token_actual['valor'].startswith('"') or self.token_actual['tipo'] == 'SIMBOLO' and self.token_actual['valor'] == '"'):
-            nodo.agregar_hijo(NodoAST("CADENA", self.token_actual['valor']))
+        nodo = NodoAST("Exp_Impresion")
+        
+        if self.token_actual and (self.token_actual['valor'].startswith('"') or (self.token_actual['tipo'] == 'SIMBOLO' and self.token_actual['valor'] == '"')):
+            nodo.agregar_hijo(NodoAST(f"Cadena Texto: {self.token_actual['valor']}"))
             self.avanzar()
         else:
-            nodo.agregar_hijo(self.expresion())
+            nodo_exp = self.expresion()
+            if nodo_exp: 
+                nodo.agregar_hijo(nodo_exp)
             
-        while self.token_actual and self.token_actual['valor'] == '<<':
-            self.consumir("OP_LOG_REL", "<<")
-            if self.token_actual and self.token_actual['valor'].startswith('"'):
-                nodo.agregar_hijo(NodoAST("CADENA", self.token_actual['valor']))
+        while self.token_actual and self.token_actual['valor'] in ['<<', '<']:
+            if self.token_actual['valor'] == '<<':
                 self.avanzar()
             else:
-                nodo.agregar_hijo(self.expresion())
+                self.avanzar()
+                if self.token_actual and self.token_actual['valor'] == '<': 
+                    self.avanzar()
+                
+            if self.token_actual and self.token_actual['valor'].startswith('"'):
+                nodo.agregar_hijo(NodoAST(f"Cadena Texto: {self.token_actual['valor']}"))
+                self.avanzar()
+            else:
+                nodo_exp = self.expresion()
+                if nodo_exp: 
+                    nodo.agregar_hijo(nodo_exp)
                 
         self.consumir("SIMBOLO", ";")
         return nodo
 
+    # --- EXPRESIONES ---
+
     def expresion(self):
-        nodo = NodoAST("EXPRESION")
-        nodo.agregar_hijo(self.expresion_simple())
-        if self.token_actual and self.token_actual['tipo'] == 'OP_LOG_REL' and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=']:
-            nodo.agregar_hijo(self.consumir("OP_LOG_REL"))
-            nodo.agregar_hijo(self.expresion_simple())
-        return nodo
+        nodo_izq = self.expresion_simple()
+        while self.token_actual and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=', '&&', '||']):
+            nodo_op = NodoAST(f"Op_Relacional: {self.token_actual['valor']}")
+            self.avanzar()
+            nodo_der = self.expresion_simple()
+            if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
+            if nodo_der: nodo_op.agregar_hijo(nodo_der)
+            nodo_izq = nodo_op
+        return nodo_izq
 
     def expresion_simple(self):
-        nodo = NodoAST("EXPRESION_SIMPLE")
-        nodo.agregar_hijo(self.termino())
-        while self.token_actual and self.token_actual['tipo'] == 'OP_ARITMETICO' and self.token_actual['valor'] in ['+', '-', '++', '--']:
-            nodo.agregar_hijo(self.consumir("OP_ARITMETICO"))
-            nodo.agregar_hijo(self.termino())
-        return nodo
+        nodo_izq = self.termino()
+        while self.token_actual and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['+', '-']:
+            nodo_op = NodoAST(f"Op_Aritmetico: {self.token_actual['valor']}")
+            self.avanzar()
+            nodo_der = self.termino()
+            if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
+            if nodo_der: nodo_op.agregar_hijo(nodo_der)
+            nodo_izq = nodo_op
+        return nodo_izq
 
     def termino(self):
-        nodo = NodoAST("TERMINO")
-        nodo.agregar_hijo(self.factor())
-        while self.token_actual and self.token_actual['tipo'] == 'OP_ARITMETICO' and self.token_actual['valor'] in ['*', '/', '%']:
-            nodo.agregar_hijo(self.consumir("OP_ARITMETICO"))
-            nodo.agregar_hijo(self.factor())
-        return nodo
+        nodo_izq = self.factor()
+        while self.token_actual and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['*', '/', '%']:
+            nodo_op = NodoAST(f"Op_Multiplicativo: {self.token_actual['valor']}")
+            self.avanzar()
+            nodo_der = self.factor()
+            if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
+            if nodo_der: nodo_op.agregar_hijo(nodo_der)
+            nodo_izq = nodo_op
+        return nodo_izq
 
     def factor(self):
-        nodo = NodoAST("FACTOR")
-        nodo.agregar_hijo(self.componente())
+        nodo_izq = self.componente()
         while self.token_actual and self.token_actual['valor'] == '^':
-            nodo.agregar_hijo(self.consumir("OP_ARITMETICO", "^"))
-            nodo.agregar_hijo(self.componente())
-        return nodo
+            nodo_op = NodoAST("Op_Potencia: ^")
+            self.avanzar()
+            nodo_der = self.componente()
+            if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
+            if nodo_der: nodo_op.agregar_hijo(nodo_der)
+            nodo_izq = nodo_op
+        return nodo_izq
 
     def componente(self):
-        nodo = NodoAST("COMPONENTE")
-        if not self.token_actual: return nodo
+        if not self.token_actual: 
+            return None
         
         if self.token_actual['valor'] == '(':
             self.consumir("SIMBOLO", "(")
-            nodo.agregar_hijo(self.expresion())
+            nodo = self.expresion()
             self.consumir("SIMBOLO", ")")
+            return nodo
         elif self.token_actual['tipo'] == 'NUMERO':
-            nodo.agregar_hijo(self.consumir("NUMERO"))
+            val = self.token_actual['valor']
+            self.avanzar()
+            return NodoAST(f"Literal: {val}")
         elif self.token_actual['tipo'] == 'IDENTIFICADOR':
-            nodo.agregar_hijo(self.consumir("IDENTIFICADOR"))
-        elif self.token_actual['valor'] in ['&&', '||', '!']:
-            nodo.agregar_hijo(self.consumir("OP_LOG_REL"))
-            nodo.agregar_hijo(self.componente())
+            val = self.token_actual['valor']
+            self.avanzar()
+            return NodoAST(f"Id_Token: {val}")
+        elif self.token_actual['valor'] == '!':
+            nodo_op = NodoAST("Op_Logico: !")
+            self.avanzar()
+            nodo_comp = self.componente()
+            if nodo_comp: 
+                nodo_op.agregar_hijo(nodo_comp)
+            return nodo_op
         else:
-            self.reportar_error(f"Componente inválido: {self.token_actual['valor']}")
-        return nodo
+            return None
