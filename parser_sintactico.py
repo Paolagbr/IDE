@@ -43,8 +43,6 @@ class AnalizadorSintactico:
             info_err = {'linea': 'EOF', 'col': 'EOF', 'msg': f"Error Sintactico al final del archivo: {mensaje}"}
         self.errores.append(info_err)
         
-        # Sincronización suavizada: Solo saltamos hasta el final de la instrucción actual (;)
-        # Evitamos saltar palabras clave como 'end' o '}' para no destruir bloques enteros del árbol.
         while self.token_actual and self.token_actual['valor'] not in [';', '}', 'end']:
             self.avanzar()
             
@@ -258,33 +256,7 @@ class AnalizadorSintactico:
         self.consumir("RESERVADA", "end")
         return nodo
 
-    # def repeticion(self):
-    #     nodo = NodoAST("Sentencia_Bucle_DO_WHILE")
-    #     self.consumir("RESERVADA", "do")
-        
-    #     # Procesamos el cuerpo. Si se topa con el 'while' de abajo, se detendrá si manejamos bien los tokens.
-    #     nodo_cuerpo = self.lista_sentencias()
-    #     if nodo_cuerpo:
-    #         nodo_b = NodoAST("Bloque_Repetir")
-    #         nodo_b.agregar_hijo(nodo_cuerpo)
-    #         nodo.agregar_hijo(nodo_b)
-            
-    #     self.consumir("RESERVADA", "while")
-        
-    #     if self.token_actual and self.token_actual['valor'] == '(':
-    #         self.consumir("SIMBOLO", "(")
-    #         nodo_cond = self.expresion()
-    #         self.consumir("SIMBOLO", ")")
-    #     else:
-    #         nodo_cond = self.expresion()
-            
-    #     if nodo_cond:
-    #         nodo_t = NodoAST("Condicion_Termino")
-    #         nodo_t.agregar_hijo(nodo_cond)
-    #         nodo.agregar_hijo(nodo_t)
-        
-    #     self.consumir("SIMBOLO", ";")
-    #     return nodo
+
     def repeticion(self):
         nodo = NodoAST("Sentencia_Bucle_DO_WHILE")
         self.consumir("RESERVADA", "do")
