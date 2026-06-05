@@ -379,10 +379,30 @@ class AnalizadorSintactico:
         return nodo
 
     # --- EXPRESIONES ---
+    # --- EXPRESIONES ---
+    
+    # Nivel 1: Operadores Lógicos (Mayor jerarquía en la evaluación de condiciones)
     def expresion(self):
+        # Primero evaluamos la parte relacional
+        nodo_izq = self.expresion_relacional()
+        
+        # Después unimos con operadores lógicos si existen (&&, ||)
+        while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['&&', '||']):
+            nodo_op = NodoAST(f"Op_Logico: {self.token_actual['valor']}")
+            self.avanzar()
+            nodo_der = self.expresion_relacional()
+            if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
+            if nodo_der: nodo_op.agregar_hijo(nodo_der)
+            nodo_izq = nodo_op
+        return nodo_izq
+
+    # Nivel 2: Operadores Relacionales (Se resuelven ANTES que los lógicos)
+    def expresion_relacional(self):
+        # Bajamos a las operaciones aritméticas simples (+, -)
         nodo_izq = self.expresion_simple()
-        # Agregamos 'do' y '(' como frenos de emergencia para que las condiciones no se traguen el inicio de los bucles
-        while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=', '&&', '||']):
+        
+        # Evaluamos los comparadores tradicionales (<, <=, >, >=, ==, !=)
+        while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=']):
             nodo_op = NodoAST(f"Op_Relacional: {self.token_actual['valor']}")
             self.avanzar()
             nodo_der = self.expresion_simple()
@@ -391,6 +411,7 @@ class AnalizadorSintactico:
             nodo_izq = nodo_op
         return nodo_izq
 
+    # Nivel 3: Sumas y Restas
     def expresion_simple(self):
         nodo_izq = self.termino()
         while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['+', '-']:
@@ -402,6 +423,7 @@ class AnalizadorSintactico:
             nodo_izq = nodo_op
         return nodo_izq
 
+    # Nivel 4: Multiplicaciones y Divisiones
     def termino(self):
         nodo_izq = self.factor()
         while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['*', '/', '%']:
@@ -412,7 +434,6 @@ class AnalizadorSintactico:
             if nodo_der: nodo_op.agregar_hijo(nodo_der)
             nodo_izq = nodo_op
         return nodo_izq
-    
 
     def factor(self):
         nodo_izq = self.componente()
