@@ -263,8 +263,31 @@ class AnalizadorSintactico:
 
         nodo_b = NodoAST("Bloque_Repetir")
 
-        while self.token_actual and self.token_actual['valor'] != 'while':
+        while self.token_actual:
+
+            # Detectar únicamente el while(condicion);
+            # que cierra el do-while
+            if (
+                self.token_actual['valor'] == 'while'
+                and self.pos + 1 < len(self.tokens)
+            ):
+
+                i = self.pos
+
+                while (
+                    i < len(self.tokens)
+                    and self.tokens[i]['valor'] != ')'
+                ):
+                    i += 1
+
+                if (
+                    i + 1 < len(self.tokens)
+                    and self.tokens[i + 1]['valor'] == ';'
+                ):
+                    break
+
             nodo_sent = self.sentencia()
+
             if nodo_sent:
                 nodo_b.agregar_hijo(nodo_sent)
 
@@ -280,6 +303,7 @@ class AnalizadorSintactico:
             nodo_cond = self.expresion()
 
         nodo_t = NodoAST("Condicion_Termino")
+
         if nodo_cond:
             nodo_t.agregar_hijo(nodo_cond)
 
@@ -288,7 +312,6 @@ class AnalizadorSintactico:
         self.consumir("SIMBOLO", ";")
 
         return nodo
-
     def sent_in(self):
         nodo = NodoAST("Stream_Entrada (cin)")
         self.consumir("RESERVADA", "cin")
