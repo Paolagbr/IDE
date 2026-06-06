@@ -94,7 +94,6 @@ def analisis_sintactico(editor, tree_sintactico, consola_errores_sintacticos):
       #  messagebox.showinfo("Éxito", "¡Estructura sintáctica totalmente válida!")
 
     # 4. Dibujar el AST Gráfico tipo Carpetas en el Treeview
-    # Para que funcione, convertiremos la pestaña 'Sintáctico' del panel derecho en un Treeview jerárquico.
     for item in tree_sintactico.get_children():
         tree_sintactico.delete(item)
         

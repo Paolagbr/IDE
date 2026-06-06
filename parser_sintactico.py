@@ -29,7 +29,6 @@ class AnalizadorSintactico:
         encontrado_str = self.token_actual['valor'] if self.token_actual else "EOF"
         self.reportar_error(f"Se esperaba '{esperado_str}' pero se encontró '{encontrado_str}'")
         
-        # Retornamos un nodo falso en lugar de None para no romper la estructura del árbol
         return NodoAST("ERROR_SINTACTICO", esperado_str)
 
     def reportar_error(self, mensaje):
@@ -88,8 +87,7 @@ class AnalizadorSintactico:
     def declaracion_variable(self):
         nodo_tipo = self.token_actual['valor'] if self.token_actual else "tipo"
         nodo = NodoAST(f"Decl_Variable ({nodo_tipo})")
-        self.avanzar() # Avanzamos de forma segura pasando el 'int' o 'float'
-
+        self.avanzar() 
         nodo_id = self.consumir("IDENTIFICADOR")
         if nodo_id and nodo_id.tipo != "ERROR_SINTACTICO": 
             nodo.agregar_hijo(NodoAST(f"id: {nodo_id.valor}"))
@@ -105,7 +103,6 @@ class AnalizadorSintactico:
 
     def lista_sentencias(self):
         nodo = NodoAST("Cuerpo_Instrucciones")
-        # Quitamos 'while' de aquí para que los ciclos while normales puedan tener sub-sentencias sin romperse
         while self.token_actual and self.token_actual['valor'] not in ['end', 'else', '}', 'until']:
             pos_anterior = self.pos
             nodo_sent = self.sentencia()
@@ -179,14 +176,10 @@ class AnalizadorSintactico:
         if self.token_actual and self.token_actual['valor'] == ';':
             self.consumir("SIMBOLO", ";")
             return None
-            
-        # Si nos topamos con una palabra estructural que abre bloques, salimos sin pedir ';'
         if self.token_actual and self.token_actual['valor'] in ['while', 'do', 'if', 'end', '}', 'then']:
             return None
             
         nodo_exp = self.expresion()
-        
-        # ¡EL CAMBIO AQUÍ!: Si después de la expresión sigue un 'do' o 'then', NO consumas ';'
         if self.token_actual and self.token_actual['valor'] in ['do', 'then']:
             return nodo_exp
             
@@ -374,14 +367,9 @@ class AnalizadorSintactico:
         return nodo
 
     # --- EXPRESIONES ---
-    # --- EXPRESIONES ---
-    
     # Nivel 1: Operadores Lógicos (Mayor jerarquía en la evaluación de condiciones)
     def expresion(self):
-        # Primero evaluamos la parte relacional
         nodo_izq = self.expresion_relacional()
-        
-        # Después unimos con operadores lógicos si existen (&&, ||)
         while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['&&', '||']):
             nodo_op = NodoAST(f"Op_Logico: {self.token_actual['valor']}")
             self.avanzar()
@@ -393,10 +381,7 @@ class AnalizadorSintactico:
 
     # Nivel 2: Operadores Relacionales (Se resuelven ANTES que los lógicos)
     def expresion_relacional(self):
-        # Bajamos a las operaciones aritméticas simples (+, -)
         nodo_izq = self.expresion_simple()
-        
-        # Evaluamos los comparadores tradicionales (<, <=, >, >=, ==, !=)
         while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=']):
             nodo_op = NodoAST(f"Op_Relacional: {self.token_actual['valor']}")
             self.avanzar()
