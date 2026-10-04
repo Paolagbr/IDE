@@ -256,7 +256,18 @@ class AnalizadorSintactico:
 
         nodo_b = NodoAST("Bloque_Repetir")
 
+        # Llaves opcionales: do { ... } while (cond);
+        con_llaves = False
+        if self.token_actual and self.token_actual['valor'] == '{':
+            self.consumir("SIMBOLO", "{")
+            con_llaves = True
+
         while self.token_actual:
+
+            if con_llaves and self.token_actual['valor'] == '}':
+                self.consumir("SIMBOLO", "}")
+                con_llaves = False
+                continue
 
             # Detectar únicamente el while(condicion);
             # que cierra el do-while
@@ -279,10 +290,17 @@ class AnalizadorSintactico:
                 ):
                     break
 
+            pos_anterior = self.pos
             nodo_sent = self.sentencia()
 
             if nodo_sent:
                 nodo_b.agregar_hijo(nodo_sent)
+
+            # Si no avanzó ningún token, evitar el ciclo infinito
+            if self.pos == pos_anterior:
+                if self.token_actual and self.token_actual['valor'] in ['end', '}']:
+                    break  # el bloque terminó mal; consumir("while") reportará el error
+                self.avanzar()
 
         nodo.agregar_hijo(nodo_b)
 

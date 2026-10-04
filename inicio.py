@@ -288,6 +288,34 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
     estados_modificados[notebook_editor.select()] = False
     actualizar_todo_local(editor_text, line_numbers)
 # ==========================================
+# 3.1 PUENTE ENTRE LOS BOTONES Y FunCompilacion
+#     (le pasan a cada fase el editor / la ruta de la pestaña activa)
+# ==========================================
+def obtener_ruta_actual():
+    """Ruta del archivo de la pestaña activa. Si no se ha guardado nunca
+    pide 'Guardar como'; si tiene cambios sin guardar los guarda primero."""
+    id_p = notebook_editor.select()
+    if not id_p:
+        return None
+    frame = notebook_editor.nametowidget(id_p)
+    if estados_modificados.get(id_p, False) or not getattr(frame, 'ruta_archivo', None):
+        guardar_simple()
+    return getattr(frame, 'ruta_archivo', None)
+
+def lanzar_lexico():
+    FunCompilacion.analisis_lexico(obtener_editor_actual(), tabla_tokens, consola_errores_lexicos)
+    tabs_resultados.select(frame_lexico)
+    tabs_consola.select(frame_err_lex)
+
+def lanzar_sintactico():
+    FunCompilacion.analisis_sintactico(obtener_editor_actual(), tree_ast, consola_errores_sintacticos)
+    tabs_resultados.select(frame_sintactico)
+    tabs_consola.select(frame_err_sin)
+
+def lanzar_fase(fase):
+    FunCompilacion.ejecutar_fase(fase, obtener_ruta_actual())
+
+# ==========================================
 # 4. MENÚS Y BARRA SUPERIOR (TU DISEÑO)
 # ==========================================
 barra_superior = tk.Frame(root, bg=COLOR_BARRA, height=40)
@@ -312,11 +340,11 @@ archivo_btn.pack(side=tk.LEFT, padx=5)
 # Menu Compilar
 compilar_btn = tk.Menubutton(barra_superior, text="Compilar", bg=COLOR_BARRA, relief=tk.FLAT, font=FUENTE_SISTEMA)
 compilar_menu = Menu(compilar_btn, tearoff=0, bg=COLOR_FONDO, fg=COLOR_TEXTO)
-compilar_menu.add_command(label=" Análisis Léxico", image=img_lexico, compound=tk.LEFT, command=FunCompilacion.analisis_lexico)
-compilar_menu.add_command(label=" Análisis Sintáctico", image=img_sintatico, compound=tk.LEFT, command=FunCompilacion.analisis_sintactico)
-compilar_menu.add_command(label=" Análisis Semántico", image=img_semantico, compound=tk.LEFT, command=FunCompilacion.analisis_semantico)
-compilar_menu.add_command(label=" Intermedio", compound=tk.LEFT, command=FunCompilacion.codigo_intermedio)
-compilar_menu.add_command(label=" Ejecutar", image=img_play, compound=tk.LEFT, command=FunCompilacion.ejecutar_programa)
+compilar_menu.add_command(label=" Análisis Léxico", image=img_lexico, compound=tk.LEFT, command=lanzar_lexico)
+compilar_menu.add_command(label=" Análisis Sintáctico", image=img_sintatico, compound=tk.LEFT, command=lanzar_sintactico)
+compilar_menu.add_command(label=" Análisis Semántico", image=img_semantico, compound=tk.LEFT, command=lambda: lanzar_fase("semantico"))
+compilar_menu.add_command(label=" Intermedio", compound=tk.LEFT, command=lambda: lanzar_fase("intermedio"))
+compilar_menu.add_command(label=" Ejecutar", image=img_play, compound=tk.LEFT, command=lambda: lanzar_fase("ejecutar"))
 compilar_btn.config(menu=compilar_menu)
 compilar_btn.pack(side=tk.LEFT, padx=5)
 
@@ -324,19 +352,11 @@ compilar_btn.pack(side=tk.LEFT, padx=5)
 def crear_btn_sup(texto, icono, comando):
     tk.Button(barra_superior, text=texto, image=icono, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, command=comando, padx=10).pack(side=tk.LEFT)
 
-crear_btn_sup("Léxico", img_lexico, lambda: FunCompilacion.analisis_lexico(
-    obtener_editor_actual(), 
-    tabla_tokens, 
-    consola_errores_lexicos
-))
-crear_btn_sup("Sintáctico", img_sintatico, lambda: FunCompilacion.analisis_sintactico(
-    obtener_editor_actual(), 
-    tree_ast, 
-    consola_errores_sintacticos
-))
-crear_btn_sup("Semántico", img_semantico, FunCompilacion.analisis_semantico)
-crear_btn_sup("Intermedio", None, FunCompilacion.codigo_intermedio)
-tk.Button(barra_superior, text=" Ejecutar", image=img_play, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, font=('Segoe UI', 10), command=FunCompilacion.ejecutar_programa, padx=15).pack(side=tk.LEFT)
+crear_btn_sup("Léxico", img_lexico, lanzar_lexico)
+crear_btn_sup("Sintáctico", img_sintatico, lanzar_sintactico)
+crear_btn_sup("Semántico", img_semantico, lambda: lanzar_fase("semantico"))
+crear_btn_sup("Intermedio", None, lambda: lanzar_fase("intermedio"))
+tk.Button(barra_superior, text=" Ejecutar", image=img_play, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, font=('Segoe UI', 10), command=lambda: lanzar_fase("ejecutar"), padx=15).pack(side=tk.LEFT)
 
 # BARRA DE ACCESO RÁPIDO 
 barra_herramientas = tk.Frame(root, bg=COLOR_EDITOR, height=35)
@@ -352,13 +372,13 @@ crear_btn_herr(img_guardar, lambda: guardar_simple())
 crear_btn_herr(img_guardarComo, lambda: guardar_como())
 crear_btn_herr(img_salir, cerrar_pestana_actual)
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
-crear_btn_herr(img_lexico, FunCompilacion.analisis_lexico)
-crear_btn_herr(img_sintatico, FunCompilacion.analisis_sintactico)
-crear_btn_herr(img_semantico, FunCompilacion.analisis_semantico)
+crear_btn_herr(img_lexico, lanzar_lexico)
+crear_btn_herr(img_sintatico, lanzar_sintactico)
+crear_btn_herr(img_semantico, lambda: lanzar_fase("semantico"))
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
 tk.Button(barra_herramientas, image=img_play, bg=COLOR_EDITOR,activebackground=COLOR_BARRA, 
           bd=0, 
-          relief=tk.FLAT, command=FunCompilacion.ejecutar_programa).pack(side=tk.LEFT, padx=5)
+          relief=tk.FLAT, command=lambda: lanzar_fase("ejecutar")).pack(side=tk.LEFT, padx=5)
 
 # ==========================================
 # 5. ESTRUCTURA DE PANELES
@@ -419,7 +439,9 @@ consola_errores_lexicos = tk.Text(frame_err_lex, bg="#2E3440", fg="#FF5555", fon
 consola_errores_lexicos.pack(fill=tk.BOTH, expand=True)
 
 #Parte de la consola para sintactico
-consola_errores_sintacticos = tk.Text(tabs_consola.nametowidget(tabs_consola.tabs()[0]), bg="#2E3440", fg="#FF5555", font=('Consolas', 10))
+frame_err_sin = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
+tabs_consola.add(frame_err_sin, text="Errores Sintácticos", image=img_errores, compound=tk.LEFT)
+consola_errores_sintacticos = tk.Text(frame_err_sin, bg="#2E3440", fg="#FF5555", font=('Consolas', 10))
 consola_errores_sintacticos.pack(fill=tk.BOTH, expand=True)
 # ==========================================
 # 6. FUNCIONES DE APOYO
