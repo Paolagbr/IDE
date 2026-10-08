@@ -12,12 +12,29 @@ class Symbol:
     def __init__(self, name, data_type, line, offset=0):
         self.name = name           # Nombre de la variable
         self.data_type = data_type # Tipo: 'int', 'float', 'bool'
-        self.line = line           # Línea de declaración
+        self.lines = [line] if line is not None else []        # Línea de declaración
         self.offset = offset       # Dirección / Desplazamiento de memoria
+    
+    @property
+    def line(self):
+            """Devuelve las líneas de uso ordenadas y separadas por comas."""
+            return ", ".join(map(str, sorted(self.lines)))
+
+    def add_line(self, line):
+            """Registra una línea nueva sin repetir las existentes."""
+            if line is not None and line not in self.lines:
+                self.lines.append(line)
+
+    def add_reference(self, name, line):
+            """Registra una nueva aparición de una variable ya declarada."""
+            sym = self.lookup(name)
+            if sym:
+                sym.add_line(line)   
 
     def __repr__(self):
         return f"Symbol(name='{self.name}', type='{self.data_type}', line={self.line}, offset={self.offset})"
 
+  
 
 class SymbolTable:
     """Tabla de Símbolos basada en un diccionario."""
@@ -40,6 +57,12 @@ class SymbolTable:
 
     def get_all_symbols(self):
         return list(self.symbols.values())
+    
+    def add_reference(self, name, line):
+        """Registra una nueva aparición de una variable ya declarada."""
+        sym = self.lookup(name)
+        if sym:
+            sym.add_line(line)
 
 
 class SemanticAnalyzer:
@@ -79,6 +102,7 @@ class SemanticAnalyzer:
         if sym is None:
             self.add_error(f"Variable '{nombre}' no declarada.", linea)
             return None
+        self.symbol_table.add_reference(nombre, linea)
         return sym.data_type
 
     # ---------- punto de entrada ----------
