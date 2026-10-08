@@ -1,4 +1,5 @@
 import ctypes
+import parser_sintactico
 try:
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
 except Exception:
@@ -312,8 +313,24 @@ def lanzar_sintactico():
     tabs_resultados.select(frame_sintactico)
     tabs_consola.select(frame_err_sin)
 
+
+def lanzar_semantico():
+    # Pasa el editor actual y los 3 widgets requeridos a FunCompilacion
+    FunCompilacion.analisis_semantico(
+        obtener_editor_actual(), 
+        tree_ast_semantico, 
+        tabla_simbolos_gui, 
+        consola_errores_semanticos
+    )
+    # Seleccionar las pestañas correspondientes para mostrar el resultado al usuario
+    tabs_resultados.select(frame_semantico)
+    tabs_consola.select(frame_err_sem)
+
 def lanzar_fase(fase):
-    FunCompilacion.ejecutar_fase(fase, obtener_ruta_actual())
+    if fase == "semantico":
+        lanzar_semantico()
+    else:
+        FunCompilacion.ejecutar_fase(fase, obtener_ruta_actual())
 
 # ==========================================
 # 4. MENÚS Y BARRA SUPERIOR (TU DISEÑO)
@@ -342,7 +359,7 @@ compilar_btn = tk.Menubutton(barra_superior, text="Compilar", bg=COLOR_BARRA, re
 compilar_menu = Menu(compilar_btn, tearoff=0, bg=COLOR_FONDO, fg=COLOR_TEXTO)
 compilar_menu.add_command(label=" Análisis Léxico", image=img_lexico, compound=tk.LEFT, command=lanzar_lexico)
 compilar_menu.add_command(label=" Análisis Sintáctico", image=img_sintatico, compound=tk.LEFT, command=lanzar_sintactico)
-compilar_menu.add_command(label=" Análisis Semántico", image=img_semantico, compound=tk.LEFT, command=lambda: lanzar_fase("semantico"))
+compilar_menu.add_command(label=" Análisis Semántico", image=img_semantico, compound=tk.LEFT, command=lanzar_semantico)
 compilar_menu.add_command(label=" Intermedio", compound=tk.LEFT, command=lambda: lanzar_fase("intermedio"))
 compilar_menu.add_command(label=" Ejecutar", image=img_play, compound=tk.LEFT, command=lambda: lanzar_fase("ejecutar"))
 compilar_btn.config(menu=compilar_menu)
@@ -354,7 +371,7 @@ def crear_btn_sup(texto, icono, comando):
 
 crear_btn_sup("Léxico", img_lexico, lanzar_lexico)
 crear_btn_sup("Sintáctico", img_sintatico, lanzar_sintactico)
-crear_btn_sup("Semántico", img_semantico, lambda: lanzar_fase("semantico"))
+crear_btn_sup("Semántico", img_semantico, lanzar_semantico)
 crear_btn_sup("Intermedio", None, lambda: lanzar_fase("intermedio"))
 tk.Button(barra_superior, text=" Ejecutar", image=img_play, compound=tk.LEFT, bg=COLOR_BARRA, relief=tk.FLAT, font=('Segoe UI', 10), command=lambda: lanzar_fase("ejecutar"), padx=15).pack(side=tk.LEFT)
 
@@ -374,7 +391,7 @@ crear_btn_herr(img_salir, cerrar_pestana_actual)
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
 crear_btn_herr(img_lexico, lanzar_lexico)
 crear_btn_herr(img_sintatico, lanzar_sintactico)
-crear_btn_herr(img_semantico, lambda: lanzar_fase("semantico"))
+crear_btn_herr(img_semantico, lanzar_semantico)
 tk.Frame(barra_herramientas, width=1, bg=COLOR_BARRA).pack(side=tk.LEFT, fill=tk.Y, padx=8, pady=5)
 tk.Button(barra_herramientas, image=img_play, bg=COLOR_EDITOR,activebackground=COLOR_BARRA, 
           bd=0, 
@@ -407,15 +424,44 @@ tabs_resultados.add(frame_sintactico, text="Sintáctico")
 tree_ast = ttk.Treeview(frame_sintactico, show="tree")
 tree_ast.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+
 scroll_ast = ttk.Scrollbar(frame_sintactico, orient="vertical", command=tree_ast.yview)
 scroll_ast.pack(side=tk.RIGHT, fill=tk.Y)
 tree_ast.configure(yscrollcommand=scroll_ast.set)
 
+#Semantico
+frame_semantico = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
+tabs_resultados.add(frame_semantico, text="Semántico")
+
+tree_ast_semantico = ttk.Treeview(frame_semantico, show="tree")
+tree_ast_semantico.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+scroll_ast_sem = ttk.Scrollbar(frame_semantico, orient="vertical", command=tree_ast_semantico.yview)
+scroll_ast_sem.pack(side=tk.RIGHT, fill=tk.Y)
+tree_ast_semantico.configure(yscrollcommand=scroll_ast_sem.set)
+
+# --- PESTAÑA TABLA DE SÍMBOLOS ---
+frame_tabla_simbolos = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
+tabs_resultados.add(frame_tabla_simbolos, text="Tabla Símbolos")
+
+tabla_simbolos_gui = ttk.Treeview(frame_tabla_simbolos, columns=("Nombre", "Tipo", "Línea", "Offset"), show='headings')
+tabla_simbolos_gui.heading("Nombre", text="Identificador")
+tabla_simbolos_gui.heading("Tipo", text="Tipo Dato")
+tabla_simbolos_gui.heading("Línea", text="Línea")
+tabla_simbolos_gui.heading("Offset", text="Memoria (Offset)")
+
+tabla_simbolos_gui.column("Nombre", width=110)
+tabla_simbolos_gui.column("Tipo", width=80)
+tabla_simbolos_gui.column("Línea", width=60)
+tabla_simbolos_gui.column("Offset", width=90)
+tabla_simbolos_gui.pack(fill=tk.BOTH, expand=True)
+
 #Pestañas sin funciones todavia
-for n in [  "Semántico", "Intermedio", "Tabla Símbolos"]:
+for n in [ "Intermedio"]:
     tabs_resultados.add(tk.Frame(tabs_resultados, bg=COLOR_EDITOR), text=n)
 
 
+# Tabla de tokens (pestaña Léxico)
 tabla_tokens = ttk.Treeview(frame_lexico, columns=("Tipo", "Valor", "Línea"), show='headings')
 tabla_tokens.heading("Tipo", text="Tipo")
 tabla_tokens.heading("Valor", text="Valor")
@@ -423,26 +469,49 @@ tabla_tokens.heading("Línea", text="Línea")
 tabla_tokens.column("Tipo", width=100)
 tabla_tokens.column("Valor", width=150)
 tabla_tokens.column("Línea", width=50)
-tabla_tokens.pack(fill=tk.BOTH, expand=True)
+tabla_tokens.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+scroll_tokens = ttk.Scrollbar(frame_lexico, orient="vertical", command=tabla_tokens.yview)
+scroll_tokens.pack(side=tk.RIGHT, fill=tk.Y)
+tabla_tokens.configure(yscrollcommand=scroll_tokens.set)
 
 # Panel Inferior
 frame_inferior = tk.Frame(panel_vertical, bg=COLOR_FONDO)
 panel_vertical.add(frame_inferior, height=200)
 tabs_consola = ttk.Notebook(frame_inferior)
 tabs_consola.pack(fill=tk.BOTH, expand=True)
-for n in [  "Errores Semánticos", "Resultados"]:
-    tabs_consola.add(tk.Frame(tabs_consola, bg=COLOR_EDITOR), text=n, image=img_errores if "Errores" in n else img_resultado, compound=tk.LEFT)
 
+#Errores lexicos
 frame_err_lex = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
 tabs_consola.add(frame_err_lex, text="Errores Léxicos", image=img_errores, compound=tk.LEFT)
 consola_errores_lexicos = tk.Text(frame_err_lex, bg="#2E3440", fg="#FF5555", font=('Consolas', 10))
 consola_errores_lexicos.pack(fill=tk.BOTH, expand=True)
 
-#Parte de la consola para sintactico
+#Erores sintacticos
 frame_err_sin = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
 tabs_consola.add(frame_err_sin, text="Errores Sintácticos", image=img_errores, compound=tk.LEFT)
 consola_errores_sintacticos = tk.Text(frame_err_sin, bg="#2E3440", fg="#FF5555", font=('Consolas', 10))
 consola_errores_sintacticos.pack(fill=tk.BOTH, expand=True)
+
+#Errores semanticos
+frame_err_sem = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
+tabs_consola.add(frame_err_sem, text="Errores Semánticos", image=img_errores, compound=tk.LEFT)
+
+consola_errores_semanticos = ttk.Treeview(frame_err_sem, columns=("Línea", "Pos", "Tipo", "Mensaje"), show='headings')
+consola_errores_semanticos.heading("Línea", text="Línea")
+consola_errores_semanticos.heading("Pos", text="Pos")
+consola_errores_semanticos.heading("Tipo", text="Fase")
+consola_errores_semanticos.heading("Mensaje", text="Descripción del Error")
+
+consola_errores_semanticos.column("Línea", width=50)
+consola_errores_semanticos.column("Pos", width=40)
+consola_errores_semanticos.column("Tipo", width=90)
+consola_errores_semanticos.column("Mensaje", width=600)
+consola_errores_semanticos.pack(fill=tk.BOTH, expand=True)
+
+#Pestaña de Resultados
+frame_resultados = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
+tabs_consola.add(frame_resultados, text="Resultados", image=img_resultado, compound=tk.LEFT)
 # ==========================================
 # 6. FUNCIONES DE APOYO
 # ==========================================
@@ -461,12 +530,14 @@ def actualizar_todo_local(txt, line_w):
     
     txt.tag_remove("active_line", "1.0", tk.END)
     txt.tag_add("active_line", f"{txt.index('insert').split('.')[0]}.0", f"{txt.index('insert').split('.')[0]}.end+1c")
+
 def resetear_modificado():
     id_p = notebook_editor.select()
     if id_p:
         estados_modificados[id_p] = False
         n = notebook_editor.tab(id_p, "text")
         if n.endswith("*"): notebook_editor.tab(id_p, text=n.replace(" *", ""))
+
 def actualizar_estado_cursor(event=None):
     editor = obtener_editor_actual()
     if editor:
@@ -477,7 +548,6 @@ def actualizar_estado_cursor(event=None):
         label_lineas.config(
             text=f"Línea: {linea} | Columna: {int(columna)+1} | Total líneas: {total_lineas}"
         )
-
 # ==========================================
 # 7. BARRA DE ESTADO (LINEAS Y COLUMNA)
 # ==========================================

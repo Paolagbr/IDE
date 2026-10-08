@@ -17,11 +17,11 @@ class AnalizadorSintactico:
     def consumir(self, tipo_esperado, valor_esperado=None):
         if self.token_actual:
             if valor_esperado and self.token_actual['valor'] == valor_esperado:
-                nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'])
+                nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'], self.token_actual['linea'])
                 self.avanzar()
                 return nodo
             if not valor_esperado and self.token_actual['tipo'] == tipo_esperado:
-                nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'])
+                nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'], self.token_actual['linea'])
                 self.avanzar()
                 return nodo
 
@@ -90,13 +90,13 @@ class AnalizadorSintactico:
         self.avanzar() 
         nodo_id = self.consumir("IDENTIFICADOR")
         if nodo_id and nodo_id.tipo != "ERROR_SINTACTICO": 
-            nodo.agregar_hijo(NodoAST(f"id: {nodo_id.valor}"))
+            nodo.agregar_hijo(NodoAST(f"id: {nodo_id.valor}", None, nodo_id.line))
 
         while self.token_actual and self.token_actual['valor'] == ',':
             self.consumir("SIMBOLO", ",")
             nodo_sig = self.consumir("IDENTIFICADOR")
             if nodo_sig and nodo_sig.tipo != "ERROR_SINTACTICO": 
-                nodo.agregar_hijo(NodoAST(f"id: {nodo_sig.valor}"))
+                nodo.agregar_hijo(NodoAST(f"id: {nodo_sig.valor}", None, nodo_sig.line))
 
         self.consumir("SIMBOLO", ";")
         return nodo
@@ -144,7 +144,7 @@ class AnalizadorSintactico:
         
     def sent_incremento_decremento(self):
         nodo_id = self.consumir("IDENTIFICADOR")
-        nodo = NodoAST(f"Nodo_Modificar (id: {nodo_id.valor if nodo_id else ''})")
+        nodo = NodoAST(f"Nodo_Modificar (id: {nodo_id.valor if nodo_id else ''})", None, nodo_id.line if nodo_id else 1)
         
         op = ""
         if self.token_actual and self.token_actual['valor'] in ['+', '-']:
@@ -163,7 +163,7 @@ class AnalizadorSintactico:
 
     def asignacion(self):
         nodo_id = self.consumir("IDENTIFICADOR")
-        nodo = NodoAST(f"Nodo_Asignar (id: {nodo_id.valor if nodo_id else ''})")
+        nodo = NodoAST(f"Nodo_Asignar (id: {nodo_id.valor if nodo_id else ''})", None, nodo_id.line if nodo_id else 1)
         self.consumir("ASIGNACION", "=")
         
         nodo_exp = self.expresion()
@@ -271,17 +271,25 @@ class AnalizadorSintactico:
 
             # Detectar únicamente el while(condicion);
             # que cierra el do-while
+            # Cierre del do: "until condicion"
+            if self.token_actual['valor'] == 'until':
+                break
+
             if (
                 self.token_actual['valor'] == 'while'
                 and self.pos + 1 < len(self.tokens)
+                and self.tokens[self.pos + 1]['valor'] == '('
             ):
-
-                i = self.pos
-
-                while (
-                    i < len(self.tokens)
-                    and self.tokens[i]['valor'] != ')'
-                ):
+                # while ( ... ) ;  -> cierre estilo C (paréntesis balanceados)
+                i = self.pos + 1
+                profundidad = 0
+                while i < len(self.tokens):
+                    if self.tokens[i]['valor'] == '(':
+                        profundidad += 1
+                    elif self.tokens[i]['valor'] == ')':
+                        profundidad -= 1
+                        if profundidad == 0:
+                            break
                     i += 1
 
                 if (
@@ -304,6 +312,21 @@ class AnalizadorSintactico:
 
         nodo.agregar_hijo(nodo_b)
 
+        # --- forma do ... until condicion ---
+        if self.token_actual and self.token_actual['valor'] == 'until':
+            self.consumir("RESERVADA", "until")
+            nodo_cond = self.expresion()
+            nodo_t = NodoAST("Condicion_Termino")
+            if nodo_cond:
+                nodo_t.agregar_hijo(nodo_cond)
+            else:
+                self.reportar_error("Se esperaba una condición después de 'until'")
+            nodo.agregar_hijo(nodo_t)
+            if self.token_actual and self.token_actual['valor'] == ';':
+                self.consumir("SIMBOLO", ";")   # el ';' final es opcional
+            return nodo
+
+        # --- forma do ... while (condicion); ---
         self.consumir("RESERVADA", "while")
 
         if self.token_actual and self.token_actual['valor'] == '(':
@@ -336,7 +359,7 @@ class AnalizadorSintactico:
                 
         nodo_id = self.consumir("IDENTIFICADOR")
         if nodo_id and nodo_id.tipo != "ERROR_SINTACTICO": 
-            nodo.agregar_hijo(NodoAST(f"Destino_id: {nodo_id.valor}"))
+            nodo.agregar_hijo(NodoAST(f"Destino_id: {nodo_id.valor}", None, nodo_id.line))
         self.consumir("SIMBOLO", ";")
         return nodo
 
@@ -455,12 +478,19 @@ class AnalizadorSintactico:
             return nodo
         elif self.token_actual['tipo'] == 'NUMERO':
             val = self.token_actual['valor']
+            lin = self.token_actual['linea']
             self.avanzar()
-            return NodoAST(f"Literal: {val}")
+            return NodoAST(f"Literal: {val}", None, lin)
+        elif self.token_actual['valor'] in ('true', 'false'):
+            val = self.token_actual['valor']
+            lin = self.token_actual['linea']
+            self.avanzar()
+            return NodoAST(f"Literal: {val}", None, lin)
         elif self.token_actual['tipo'] == 'IDENTIFICADOR':
             val = self.token_actual['valor']
+            lin = self.token_actual['linea']
             self.avanzar()
-            return NodoAST(f"Id_Token: {val}")
+            return NodoAST(f"Id_Token: {val}", None, lin)
         elif self.token_actual['valor'] == '!':
             nodo_op = NodoAST("Op_Logico: !")
             self.avanzar()
