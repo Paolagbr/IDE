@@ -131,17 +131,32 @@ class SemanticAnalyzer:
                 if not ok:
                     self.errors.append(err)
                 self._anotar(h, tipo_var)
-
         elif et.startswith("Nodo_Asignar"):
             nombre = self._nombre_en_etiqueta(et)
             tipo_var = self._declarada(nombre, linea) if nombre else None
-            self._anotar(nodo, tipo_var)
+            
+            # Si la variable no está declarada, marcar el nodo explícitamente como 'error'
+            if not tipo_var:
+                self._anotar(nodo, 'error')
+            else:
+                self._anotar(nodo, tipo_var)
+
             for h in nodo.children:
                 tipo_exp = self.tipo_expr(h, linea)
                 if tipo_var and tipo_exp and tipo_exp != 'error':
                     if tipo_var != tipo_exp and not (tipo_var == 'float' and tipo_exp == 'int'):
-                        self.add_error(f"No se puede asignar un valor '{tipo_exp}' a la variable "
-                                       f"'{nombre}' de tipo '{tipo_var}'.", linea)
+                        self.add_error(f"No se puede asignar un valor '{tipo_exp}' a la variable '{nombre}' de tipo '{tipo_var}'.", linea)
+                        self._anotar(nodo, 'error') # Propagar error si los tipos chocan
+        # elif et.startswith("Nodo_Asignar"):
+        #     nombre = self._nombre_en_etiqueta(et)
+        #     tipo_var = self._declarada(nombre, linea) if nombre else None
+        #     self._anotar(nodo, tipo_var)
+        #     for h in nodo.children:
+        #         tipo_exp = self.tipo_expr(h, linea)
+        #         if tipo_var and tipo_exp and tipo_exp != 'error':
+        #             if tipo_var != tipo_exp and not (tipo_var == 'float' and tipo_exp == 'int'):
+        #                 self.add_error(f"No se puede asignar un valor '{tipo_exp}' a la variable "
+        #                                f"'{nombre}' de tipo '{tipo_var}'.", linea)
 
         elif et.startswith("Nodo_Modificar"):
             nombre = self._nombre_en_etiqueta(et)
