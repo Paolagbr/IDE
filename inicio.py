@@ -448,7 +448,7 @@ tabla_simbolos_gui = ttk.Treeview(frame_tabla_simbolos, columns=("Nombre", "Tipo
 tabla_simbolos_gui.heading("Nombre", text="Identificador")
 tabla_simbolos_gui.heading("Tipo", text="Tipo Dato")
 tabla_simbolos_gui.heading("Línea", text="Línea")
-tabla_simbolos_gui.heading("Offset", text="Memoria (Offset)")
+tabla_simbolos_gui.heading("Offset", text="Memoria ")
 
 tabla_simbolos_gui.column("Nombre", width=110)
 tabla_simbolos_gui.column("Tipo", width=80)
@@ -499,7 +499,7 @@ tabs_consola.add(frame_err_sem, text="Errores Semánticos", image=img_errores, c
 
 consola_errores_semanticos = ttk.Treeview(frame_err_sem, columns=("Línea", "Pos", "Tipo", "Mensaje"), show='headings')
 consola_errores_semanticos.heading("Línea", text="Línea")
-consola_errores_semanticos.heading("Pos", text="Pos")
+consola_errores_semanticos.heading("Pos", text="Posición")
 consola_errores_semanticos.heading("Tipo", text="Fase")
 consola_errores_semanticos.heading("Mensaje", text="Descripción del Error")
 
