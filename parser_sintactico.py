@@ -17,11 +17,11 @@ class AnalizadorSintactico:
     def consumir(self, tipo_esperado, valor_esperado=None):
         if self.token_actual:
             if valor_esperado and self.token_actual['valor'] == valor_esperado:
-                nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'], self.token_actual['linea'])
+                nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'], self.token_actual['linea'], self.token_actual['col'])
                 self.avanzar()
                 return nodo
             if not valor_esperado and self.token_actual['tipo'] == tipo_esperado:
-                nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'], self.token_actual['linea'])
+                nodo = NodoAST(self.token_actual['tipo'], self.token_actual['valor'], self.token_actual['linea'], self.token_actual['col'])
                 self.avanzar()
                 return nodo
 
@@ -54,7 +54,7 @@ class AnalizadorSintactico:
         return self.programa()
 
     def programa(self):
-        nodo = NodoAST("Raiz_Programa")
+        nodo = NodoAST("Raiz_Programa", None, *((self.token_actual['linea'], self.token_actual['col']) if self.token_actual else (1, 1)))
         try:
             self.consumir("RESERVADA", "main")
             
@@ -90,13 +90,13 @@ class AnalizadorSintactico:
         self.avanzar() 
         nodo_id = self.consumir("IDENTIFICADOR")
         if nodo_id and nodo_id.tipo != "ERROR_SINTACTICO": 
-            nodo.agregar_hijo(NodoAST(f"id: {nodo_id.valor}", None, nodo_id.line))
+            nodo.agregar_hijo(NodoAST(f"id: {nodo_id.valor}", None, nodo_id.line, nodo_id.col))
 
         while self.token_actual and self.token_actual['valor'] == ',':
             self.consumir("SIMBOLO", ",")
             nodo_sig = self.consumir("IDENTIFICADOR")
             if nodo_sig and nodo_sig.tipo != "ERROR_SINTACTICO": 
-                nodo.agregar_hijo(NodoAST(f"id: {nodo_sig.valor}", None, nodo_sig.line))
+                nodo.agregar_hijo(NodoAST(f"id: {nodo_sig.valor}", None, nodo_sig.line, nodo_sig.col))
 
         self.consumir("SIMBOLO", ";")
         return nodo
@@ -144,7 +144,7 @@ class AnalizadorSintactico:
         
     def sent_incremento_decremento(self):
         nodo_id = self.consumir("IDENTIFICADOR")
-        nodo = NodoAST(f"Nodo_Modificar (id: {nodo_id.valor if nodo_id else ''})", None, nodo_id.line if nodo_id else 1)
+        nodo = NodoAST(f"Nodo_Modificar (id: {nodo_id.valor if nodo_id else ''})", None, nodo_id.line if nodo_id else 1, nodo_id.col if nodo_id else None)
         
         op = ""
         if self.token_actual and self.token_actual['valor'] in ['+', '-']:
@@ -163,7 +163,7 @@ class AnalizadorSintactico:
 
     def asignacion(self):
         nodo_id = self.consumir("IDENTIFICADOR")
-        nodo = NodoAST(f"Nodo_Asignar (id: {nodo_id.valor if nodo_id else ''})", None, nodo_id.line if nodo_id else 1)
+        nodo = NodoAST(f"Nodo_Asignar (id: {nodo_id.valor if nodo_id else ''})", None, nodo_id.line if nodo_id else 1, nodo_id.col if nodo_id else None)
         self.consumir("ASIGNACION", "=")
         
         nodo_exp = self.expresion()
@@ -359,7 +359,7 @@ class AnalizadorSintactico:
                 
         nodo_id = self.consumir("IDENTIFICADOR")
         if nodo_id and nodo_id.tipo != "ERROR_SINTACTICO": 
-            nodo.agregar_hijo(NodoAST(f"Destino_id: {nodo_id.valor}", None, nodo_id.line))
+            nodo.agregar_hijo(NodoAST(f"Destino_id: {nodo_id.valor}", None, nodo_id.line, nodo_id.col))
         self.consumir("SIMBOLO", ";")
         return nodo
 
@@ -412,7 +412,7 @@ class AnalizadorSintactico:
     def expresion(self):
         nodo_izq = self.expresion_relacional()
         while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['&&', '||']):
-            nodo_op = NodoAST(f"Op_Logico: {self.token_actual['valor']}")
+            nodo_op = NodoAST(f"Op_Logico: {self.token_actual['valor']}", None, self.token_actual['linea'], self.token_actual['col'])
             self.avanzar()
             nodo_der = self.expresion_relacional()
             if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
@@ -424,7 +424,7 @@ class AnalizadorSintactico:
     def expresion_relacional(self):
         nodo_izq = self.expresion_simple()
         while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_LOG_REL', 'SIMBOLO'] and self.token_actual['valor'] in ['<', '<=', '>', '>=', '==', '!=']):
-            nodo_op = NodoAST(f"Op_Relacional: {self.token_actual['valor']}")
+            nodo_op = NodoAST(f"Op_Relacional: {self.token_actual['valor']}", None, self.token_actual['linea'], self.token_actual['col'])
             self.avanzar()
             nodo_der = self.expresion_simple()
             if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
@@ -436,7 +436,7 @@ class AnalizadorSintactico:
     def expresion_simple(self):
         nodo_izq = self.termino()
         while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['+', '-']:
-            nodo_op = NodoAST(f"Op_Aritmetico: {self.token_actual['valor']}")
+            nodo_op = NodoAST(f"Op_Aritmetico: {self.token_actual['valor']}", None, self.token_actual['linea'], self.token_actual['col'])
             self.avanzar()
             nodo_der = self.termino()
             if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
@@ -448,7 +448,7 @@ class AnalizadorSintactico:
     def termino(self):
         nodo_izq = self.factor()
         while self.token_actual and self.token_actual['valor'] not in ['do', 'then', ';', ')', '('] and (self.token_actual['tipo'] in ['OP_ARITMETICO', 'SIMBOLO']) and self.token_actual['valor'] in ['*', '/', '%']:
-            nodo_op = NodoAST(f"Op_Multiplicativo: {self.token_actual['valor']}")
+            nodo_op = NodoAST(f"Op_Multiplicativo: {self.token_actual['valor']}", None, self.token_actual['linea'], self.token_actual['col'])
             self.avanzar()
             nodo_der = self.factor()
             if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
@@ -459,7 +459,7 @@ class AnalizadorSintactico:
     def factor(self):
         nodo_izq = self.componente()
         while self.token_actual and self.token_actual['valor'] == '^':
-            nodo_op = NodoAST("Op_Potencia: ^")
+            nodo_op = NodoAST("Op_Potencia: ^", None, self.token_actual['linea'], self.token_actual['col'])
             self.avanzar()
             nodo_der = self.componente()
             if nodo_izq: nodo_op.agregar_hijo(nodo_izq)
@@ -479,20 +479,23 @@ class AnalizadorSintactico:
         elif self.token_actual['tipo'] == 'NUMERO':
             val = self.token_actual['valor']
             lin = self.token_actual['linea']
+            col = self.token_actual['col']
             self.avanzar()
-            return NodoAST(f"Literal: {val}", None, lin)
+            return NodoAST(f"Literal: {val}", None, lin, col)
         elif self.token_actual['valor'] in ('true', 'false'):
             val = self.token_actual['valor']
             lin = self.token_actual['linea']
+            col = self.token_actual['col']
             self.avanzar()
-            return NodoAST(f"Literal: {val}", None, lin)
+            return NodoAST(f"Literal: {val}", None, lin, col)
         elif self.token_actual['tipo'] == 'IDENTIFICADOR':
             val = self.token_actual['valor']
             lin = self.token_actual['linea']
+            col = self.token_actual['col']
             self.avanzar()
-            return NodoAST(f"Id_Token: {val}", None, lin)
+            return NodoAST(f"Id_Token: {val}", None, lin, col)
         elif self.token_actual['valor'] == '!':
-            nodo_op = NodoAST("Op_Logico: !")
+            nodo_op = NodoAST("Op_Logico: !", None, self.token_actual['linea'], self.token_actual['col'])
             self.avanzar()
             nodo_comp = self.componente()
             if nodo_comp: 

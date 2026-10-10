@@ -261,6 +261,7 @@ def agregar_pestana(nombre="Nuevo", contenido="", ruta=None):
         for t in tokens:
             tabla_tokens.insert('', tk.END, values=(t['tipo'], t['valor'], t['linea']))
     def ejecutar_resaltado_rapido(editor):
+        editor.tag_remove("err_marca", "1.0", tk.END)
         from scanner import Scanner
         sc = Scanner()
         codigo = editor.get("1.0", tk.END)
@@ -314,13 +315,29 @@ def lanzar_sintactico():
     tabs_consola.select(frame_err_sin)
 
 
+def ir_a_error(event):
+    """Doble clic sobre un error: lleva el cursor del editor a la fila:columna del error."""
+    fila_sel = consola_errores_semanticos.focus()
+    if not fila_sel:
+        return
+    valores = consola_errores_semanticos.item(fila_sel, "values")
+    editor = obtener_editor_actual()
+    if editor and valores and str(valores[0]).isdigit():
+        col = int(valores[1]) - 1 if str(valores[1]).isdigit() else 0
+        pos = f"{valores[0]}.{col}"
+        editor.mark_set("insert", pos)
+        editor.see(pos)
+        editor.focus_set()
+
+
 def lanzar_semantico():
     # Pasa el editor actual y los 3 widgets requeridos a FunCompilacion
     FunCompilacion.analisis_semantico(
         obtener_editor_actual(), 
         tree_ast_semantico, 
         tabla_simbolos_gui, 
-        consola_errores_semanticos
+        consola_errores_semanticos,
+        consola_traza
     )
     # Seleccionar las pestañas correspondientes para mostrar el resultado al usuario
     tabs_resultados.select(frame_semantico)
@@ -421,7 +438,11 @@ tabs_resultados.add(frame_lexico, text="Léxico")
 #Sintactico 
 frame_sintactico = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
 tabs_resultados.add(frame_sintactico, text="Sintáctico")
-tree_ast = ttk.Treeview(frame_sintactico, show="tree")
+tree_ast = ttk.Treeview(frame_sintactico, columns=("Pos",), show="tree headings")
+tree_ast.heading("#0", text="Nodo")
+tree_ast.heading("Pos", text="Fila:Col")
+tree_ast.column("#0", width=320)
+tree_ast.column("Pos", width=70, anchor="center", stretch=False)
 tree_ast.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
 
@@ -433,7 +454,17 @@ tree_ast.configure(yscrollcommand=scroll_ast.set)
 frame_semantico = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
 tabs_resultados.add(frame_semantico, text="Semántico")
 
-tree_ast_semantico = ttk.Treeview(frame_semantico, show="tree")
+tree_ast_semantico = ttk.Treeview(frame_semantico, columns=("Tipo", "Valor", "Atrib", "Pos"), show="tree headings")
+tree_ast_semantico.heading("#0", text="Nodo")
+tree_ast_semantico.heading("Tipo", text="Tipo")
+tree_ast_semantico.heading("Valor", text="Valor")
+tree_ast_semantico.heading("Atrib", text="Atributos (H/S)")
+tree_ast_semantico.heading("Pos", text="Fila:Col")
+tree_ast_semantico.column("#0", width=300)
+tree_ast_semantico.column("Tipo", width=60, anchor="center", stretch=False)
+tree_ast_semantico.column("Valor", width=70, anchor="center", stretch=False)
+tree_ast_semantico.column("Atrib", width=150, anchor="center", stretch=False)
+tree_ast_semantico.column("Pos", width=70, anchor="center", stretch=False)
 tree_ast_semantico.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
 scroll_ast_sem = ttk.Scrollbar(frame_semantico, orient="vertical", command=tree_ast_semantico.yview)
@@ -444,7 +475,7 @@ tree_ast_semantico.configure(yscrollcommand=scroll_ast_sem.set)
 frame_tabla_simbolos = tk.Frame(tabs_resultados, bg=COLOR_EDITOR)
 tabs_resultados.add(frame_tabla_simbolos, text="Tabla Símbolos")
 
-tabla_simbolos_gui = ttk.Treeview(frame_tabla_simbolos, columns=("Nombre", "Tipo", "Línea", "Offset"), show='headings')
+tabla_simbolos_gui = ttk.Treeview(frame_tabla_simbolos, columns=("Nombre", "Tipo", "Línea", "Offset", "Valor"), show='headings')
 tabla_simbolos_gui.heading("Nombre", text="Identificador")
 tabla_simbolos_gui.heading("Tipo", text="Tipo Dato")
 tabla_simbolos_gui.heading("Línea", text="Línea")
@@ -454,6 +485,8 @@ tabla_simbolos_gui.column("Nombre", width=110)
 tabla_simbolos_gui.column("Tipo", width=80)
 tabla_simbolos_gui.column("Línea", width=60)
 tabla_simbolos_gui.column("Offset", width=90)
+tabla_simbolos_gui.heading("Valor", text="Valor actual")
+tabla_simbolos_gui.column("Valor", width=90)
 tabla_simbolos_gui.pack(fill=tk.BOTH, expand=True)
 
 #Pestañas sin funciones todavia
@@ -512,6 +545,19 @@ consola_errores_semanticos.pack(fill=tk.BOTH, expand=True)
 #Pestaña de Resultados
 frame_resultados = tk.Frame(tabs_consola, bg=COLOR_EDITOR)
 tabs_consola.add(frame_resultados, text="Resultados", image=img_resultado, compound=tk.LEFT)
+
+consola_traza = tk.Text(frame_resultados, bg="#2E3440", fg="#D8DEE9", font=('Consolas', 10), wrap="none")
+scroll_traza = ttk.Scrollbar(frame_resultados, orient="vertical", command=consola_traza.yview)
+consola_traza.configure(yscrollcommand=scroll_traza.set)
+scroll_traza.pack(side=tk.RIGHT, fill=tk.Y)
+consola_traza.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+consola_traza.tag_config("titulo", foreground="#88C0D0")
+consola_traza.tag_config("decl", foreground="#A3BE8C")
+consola_traza.tag_config("error", foreground="#FF5555")
+consola_traza.tag_config("normal", foreground="#D8DEE9")
+
+# Doble clic en un error semántico -> el cursor salta a esa fila:columna del editor
+consola_errores_semanticos.bind("<Double-1>", ir_a_error)
 # ==========================================
 # 6. FUNCIONES DE APOYO
 # ==========================================
